@@ -39,6 +39,7 @@
 #if defined(WIN64) || defined(_WIN64) || defined(__WIN64__)
 #   ifndef FC_OS_WIN64
 #   define FC_OS_WIN64
+#   define FC_OS_WIN32
 #endif
 
 #elif defined(__MWERKS__) && defined(__INTEL__)
