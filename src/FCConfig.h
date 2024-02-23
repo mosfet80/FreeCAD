@@ -233,6 +233,5 @@ typedef unsigned __int64    uint64_t;
 #   pragma warning( disable : 4267 )
 #endif
 
-#endif
 
 #endif //FC_CONFIG_H
