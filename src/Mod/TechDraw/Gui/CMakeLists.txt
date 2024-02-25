@@ -329,7 +329,6 @@ SET(TechDrawGuiTaskDlgs_SRCS
 SOURCE_GROUP("MRTE" FILES ${MRTE_SRCS})
 SOURCE_GROUP("Mod" FILES ${TechDrawGui_SRCS})
 SOURCE_GROUP("View" FILES ${TechDrawGuiView_SRCS})
-SOURCE_GROUP("Nav" FILES ${TechDrawGuiNav_SRCS})
 SOURCE_GROUP("ViewProvider" FILES ${TechDrawGuiViewProvider_SRCS})
 SOURCE_GROUP("TaskDialogs" FILES ${TechDrawGuiTaskDlgs_SRCS})
 
@@ -350,13 +349,12 @@ SET(TechDrawGuiFonts
 if(FREECAD_USE_PCH)
     add_definitions(-D_PreComp_)
     GET_MSVC_PRECOMPILED_SOURCE("PreCompiled.cpp" PCH_SRCS ${TechDrawGui_SRCS} ${TechDrawGuiView_SRCS}
-                                                           ${TechDrawGuiNav_SRCS}
                                                            ${TechDrawGuiViewProvider_SRCS} ${MRTE_SRCS})
     ADD_MSVC_PRECOMPILED_HEADER(TechDrawGui PreCompiled.h PreCompiled.cpp PCH_SRCS)
 endif(FREECAD_USE_PCH)
 
 add_library(TechDrawGui SHARED ${TechDrawGui_SRCS} ${TechDrawGuiView_SRCS} ${TechDrawGuiViewProvider_SRCS}
-                               ${TechDrawGuiNav_SRCS} ${TechDrawGuiIcon_SVG} ${TechDrawGuiFonts} ${MRTE_SRCS})
+                               ${TechDrawGuiIcon_SVG} ${TechDrawGuiFonts} ${MRTE_SRCS})
 target_link_libraries(TechDrawGui ${TechDrawGui_LIBS})
 
 fc_copy_sources(TechDrawGui "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_DATADIR}/Mod/TechDraw/" ${TechDrawGuiIcon_SVG})
