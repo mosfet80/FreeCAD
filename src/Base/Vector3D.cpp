@@ -389,27 +389,6 @@ void Vector3<float_type>::Move(float_type fX, float_type fY, float_type fZ)
     z += fZ;
 }
 
-template<class float_type>
-void Vector3<float_type>::RotateX(float_type f)
-{
-    Vector3 cPt(*this);
-
-    float_type fsin = static_cast<float_type>(sin(f));
-    float_type fcos = static_cast<float_type>(cos(f));
-    y = (cPt.y * fcos) - (cPt.z * fsin);
-    z = (cPt.y * fsin) + (cPt.z * fcos);
-}
-
-template<class float_type>
-void Vector3<float_type>::RotateY(float_type f)
-{
-    Vector3 cPt(*this);
-
-    float_type fsin = static_cast<float_type>(sin(f));
-    float_type fcos = static_cast<float_type>(cos(f));
-    x = (cPt.z * fsin) + (cPt.x * fcos);
-    z = (cPt.z * fcos) - (cPt.x * fsin);
-}
 
 template<class float_type>
 void Vector3<float_type>::RotateZ(float_type f)

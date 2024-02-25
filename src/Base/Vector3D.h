@@ -175,8 +175,6 @@ public:
     void MoveY(float_type f);
     void MoveZ(float_type f);
     void Move(float_type fX, float_type fY, float_type fZ);
-    void RotateX(float_type f);
-    void RotateY(float_type f);
     void RotateZ(float_type f);
     //@}
 

@@ -858,54 +858,6 @@ std::string InterpreterSingleton::strToPython(const char* Str)
     return result;
 }
 
-// --------------------------------------------------------------------
-
-int getSWIGVersionFromModule(const std::string& module)
-{
-    static std::map<std::string, int> moduleMap;
-    std::map<std::string, int>::iterator it = moduleMap.find(module);
-    if (it != moduleMap.end()) {
-        return it->second;
-    }
-    try {
-        // Get the module and check its __file__ attribute
-        Py::Dict dict(PyImport_GetModuleDict());
-        if (!dict.hasKey(module)) {
-            return 0;
-        }
-        Py::Module mod(module);
-        Py::String file(mod.getAttr("__file__"));
-        std::string filename = (std::string)file;
-        // file can have the extension .py or .pyc
-        filename = filename.substr(0, filename.rfind('.'));
-        filename += ".py";
-        boost::regex rx("^# Version ([1-9])\\.([0-9])\\.([0-9]+)");
-        boost::cmatch what;
-
-        std::string line;
-        Base::FileInfo fi(filename);
-
-        Base::ifstream str(fi, std::ios::in);
-        while (str && std::getline(str, line)) {
-            if (boost::regex_match(line.c_str(), what, rx)) {
-                int major = std::atoi(what[1].first);
-                int minor = std::atoi(what[2].first);
-                int micro = std::atoi(what[3].first);
-                int version = (major << 16) + (minor << 8) + micro;
-                moduleMap[module] = version;
-                return version;
-            }
-        }
-    }
-    catch (Py::Exception& e) {
-        e.clear();
-    }
-
-#if (defined(HAVE_SWIG) && (HAVE_SWIG == 1))
-    moduleMap[module] = 0;
-#endif
-    return 0;
-}
 
 #if (defined(HAVE_SWIG) && (HAVE_SWIG == 1))
 namespace Swig_python

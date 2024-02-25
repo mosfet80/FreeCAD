@@ -86,56 +86,6 @@ public:
         instance = nullptr;
     }
 
-    void customEvent(QEvent* ev) override
-    {
-        if (ev->type() == QEvent::User) {
-            ConsoleEvent* ce = static_cast<ConsoleEvent*>(ev);
-            switch (ce->msgtype) {
-                case ConsoleSingleton::MsgType_Txt:
-                    Console().notifyPrivate(LogStyle::Message,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Log:
-                    Console().notifyPrivate(LogStyle::Log,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Wrn:
-                    Console().notifyPrivate(LogStyle::Warning,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Err:
-                    Console().notifyPrivate(LogStyle::Error,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Critical:
-                    Console().notifyPrivate(LogStyle::Critical,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-                case ConsoleSingleton::MsgType_Notification:
-                    Console().notifyPrivate(LogStyle::Notification,
-                                            ce->recipient,
-                                            ce->content,
-                                            ce->notifier,
-                                            ce->msg);
-                    break;
-            }
-        }
-    }
 
 private:
     static ConsoleOutput* instance;  // NOLINT

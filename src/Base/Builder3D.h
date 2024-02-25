@@ -838,12 +838,6 @@ private:
     std::istream& inp;
 };
 
-/*!
- * Expects a string of the form "(x,y,z)" and creates a vector from it.
- * If it fails then a std::exception is thrown.
- * Supported type names are float or double
- */
-BaseExport Base::Vector3f to_vector(std::string);
 
 }  // namespace Base
 

@@ -116,11 +116,7 @@ public:
     FilterAction acceptNode(const XERCES_CPP_NAMESPACE_QUALIFIER DOMNode* node) const override;
     //@{
 
-    ShowType getWhatToShow() const override
-    {
-        return fWhatToShow;
-    }
-
+  F
     // unimplemented copy ctor and assignment operator
     DOMPrintFilter(const DOMPrintFilter&) = delete;
     DOMPrintFilter(DOMPrintFilter&&) = delete;
@@ -136,10 +132,6 @@ public:
     DOMPrintErrorHandler() = default;
     ~DOMPrintErrorHandler() override = default;
 
-    /** @name The error handler interface */
-    bool handleError(const DOMError& domError) override;
-    void resetErrors()
-    {}
 
     /* Unimplemented constructors and operators */
     DOMPrintErrorHandler(const DOMPrintErrorHandler&) = delete;
@@ -148,11 +140,6 @@ public:
     void operator=(DOMPrintErrorHandler&&) = delete;
 };
 
-
-inline bool DOMTreeErrorReporter::getSawErrors() const
-{
-    return fSawErrors;
-}
 
 
 //**************************************************************************
@@ -2075,19 +2062,3 @@ DOMPrintFilter::FilterAction DOMPrintFilter::acceptNode(const DOMNode* node) con
     }
 }
 
-//**************************************************************************
-//**************************************************************************
-// DOMPrintErrorHandler
-//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-
-bool DOMPrintErrorHandler::handleError(const DOMError& domError)
-{
-    // Display whatever error message passed from the serializer
-    char* msg = XMLString::transcode(domError.getMessage());
-    std::cout << msg << std::endl;
-    XMLString::release(&msg);
-
-    // Instructs the serializer to continue serialization if possible.
-    return true;
-}

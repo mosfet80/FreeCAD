@@ -1255,36 +1255,3 @@ bool InventorLoader::isValid() const
         return inRange(face);
     });
 }
-
-namespace Base
-{
-BaseExport Vector3f to_vector(std::string str)
-{
-    std::string_view view = str;
-    if (!boost::starts_with(view, "(") || !boost::ends_with(str, ")")) {
-        throw std::runtime_error("string is not a tuple");
-    }
-
-    view.remove_prefix(1);
-    view.remove_suffix(1);
-
-    str = view;
-
-    boost::char_separator<char> sep(" ,");
-    boost::tokenizer<boost::char_separator<char>> tokens(str, sep);
-    std::vector<std::string> token_results;
-    token_results.assign(tokens.begin(), tokens.end());
-
-    if (token_results.size() != 3) {
-        throw std::runtime_error("not a tuple of three floats");
-    }
-
-    Base::Vector3f vec;
-    vec.x = boost::lexical_cast<float>(token_results.at(0));
-    vec.y = boost::lexical_cast<float>(token_results.at(1));
-    vec.z = boost::lexical_cast<float>(token_results.at(2));
-
-    return vec;
-}
-
-}  // namespace Base
