@@ -238,129 +238,13 @@ SET(TechDrawGuiView_SRCS
     MDIViewPage.h
     PagePrinter.cpp
     PagePrinter.h
-    QGVPage.cpp
-    QGVPage.h
-    QGSPage.cpp
-    QGSPage.h
-    QGCustomText.cpp
-    QGCustomText.h
-    QGICaption.cpp
-    QGICaption.h
-    QGCustomRect.cpp
-    QGCustomRect.h
-    QGCustomSvg.cpp
-    QGCustomSvg.h
-    QGCustomClip.cpp
-    QGCustomClip.h
-    QGCustomLabel.cpp
-    QGCustomLabel.h
-    QGCustomBorder.cpp
-    QGCustomBorder.h
-    QGCustomImage.cpp
-    QGCustomImage.h
-    QGDisplayArea.cpp
-    QGDisplayArea.h
-    QGIView.cpp
-    QGIView.h
-    QGIArrow.cpp
-    QGIArrow.h
-    QGIEdge.cpp
-    QGIEdge.h
-    QGIFace.cpp
-    QGIFace.h
-    QGISVGTemplate.cpp
-    QGISVGTemplate.h
-    QGIVertex.cpp
-    QGIVertex.h
-    QGIMatting.cpp
-    QGIMatting.h
-    QGIDrawingTemplate.cpp
-    QGIDrawingTemplate.h
-    QGITemplate.cpp
-    QGITemplate.h
-    QGIViewCollection.cpp
-    QGIViewCollection.h
-    QGIViewDimension.cpp
-    QGIViewDimension.h
-    QGIViewBalloon.cpp
-    QGIViewBalloon.h
-    QGIProjGroup.cpp
-    QGIProjGroup.h
-    QGIViewPart.cpp
-    QGIViewPart.h
-    QGIViewSection.cpp
-    QGIViewSection.h
-    QGIViewAnnotation.cpp
-    QGIViewAnnotation.h
-    QGIViewSymbol.cpp
-    QGIViewSymbol.h
-    QGIViewSpreadsheet.cpp
-    QGIViewSpreadsheet.h
-    QGIViewImage.cpp
-    QGIViewImage.h
-    QGIViewClip.cpp
-    QGIViewClip.h
-    QGIPrimPath.cpp
-    QGIPrimPath.h
-    QGICMark.cpp
-    QGICMark.h
-    QGIDimLines.cpp
-    QGIDimLines.h
-    QGISectionLine.cpp
-    QGISectionLine.h
-    QGIDecoration.cpp
-    QGIDecoration.h
-    QGICenterLine.cpp
-    QGICenterLine.h
-    QGIHighlight.cpp
-    QGIHighlight.h
-    QGEPath.cpp
-    QGEPath.h
-    QGTracker.cpp
-    QGTracker.h
-    QGILeaderLine.cpp
-    QGILeaderLine.h
-    QGIRichAnno.cpp
-    QGIRichAnno.h
-    QGMText.h
-    QGMText.cpp
-    QGIWeldSymbol.h
-    QGIWeldSymbol.cpp
-    QGITile.h
-    QGITile.cpp
     TemplateTextField.cpp
     TemplateTextField.h
     ZVALUE.h
-    QGIGhostHighlight.cpp
-    QGIGhostHighlight.h
     PathBuilder.cpp
     PathBuilder.h
 )
 
-SET(TechDrawGuiNav_SRCS
-    QGVNavStyle.cpp
-    QGVNavStyle.h
-    QGVNavStyleBlender.cpp
-    QGVNavStyleBlender.h
-    QGVNavStyleCAD.cpp
-    QGVNavStyleCAD.h
-    QGVNavStyleGesture.cpp
-    QGVNavStyleGesture.h
-    QGVNavStyleInventor.cpp
-    QGVNavStyleInventor.h
-    QGVNavStyleMaya.cpp
-    QGVNavStyleMaya.h
-    QGVNavStyleOCC.cpp
-    QGVNavStyleOCC.h
-    QGVNavStyleOpenSCAD.cpp
-    QGVNavStyleOpenSCAD.h
-    QGVNavStyleRevit.cpp
-    QGVNavStyleRevit.h
-    QGVNavStyleTinkerCAD.cpp
-    QGVNavStyleTinkerCAD.h
-    QGVNavStyleTouchpad.cpp
-    QGVNavStyleTouchpad.h
-)
 
 SET(TechDrawGuiViewProvider_SRCS
     ViewProviderPage.cpp
