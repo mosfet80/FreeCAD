@@ -10,41 +10,7 @@ const char *Data::isMappedElement(const char *name) {
     return nullptr;
 }
 
-std::string Data::newElementName(const char *name) {
-    if(!name)
-        return {};
-    const char *dot = strrchr(name,'.');
-    if(!dot || dot==name)
-        return name;
-    const char *c = dot-1;
-    for(;c!=name;--c) {
-        if(*c == '.') {
-            ++c;
-            break;
-        }
-    }
-    if(isMappedElement(c))
-        return std::string(name,dot-name);
-    return name;
-}
 
-std::string Data::oldElementName(const char *name) {
-    if(!name)
-        return {};
-    const char *dot = strrchr(name,'.');
-    if(!dot || dot==name)
-        return name;
-    const char *c = dot-1;
-    for(;c!=name;--c) {
-        if(*c == '.') {
-            ++c;
-            break;
-        }
-    }
-    if(isMappedElement(c))
-        return std::string(name,c-name)+(dot+1);
-    return name;
-}
 
 std::string Data::noElementName(const char *name) {
     if(!name)
@@ -75,15 +41,3 @@ const char *Data::findElementName(const char *subname) {
     return element;
 }
 
-bool Data::hasMissingElement(const char *subname) {
-    if(!subname)
-        return false;
-    auto dot = strrchr(subname,'.');
-    if(dot)
-        subname = dot+1;
-    return boost::starts_with(subname, MISSING_PREFIX);
-}
-
-const char *Data::hasMappedElementName(const char *subname) {
-    return isMappedElement(findElementName(subname));
-}

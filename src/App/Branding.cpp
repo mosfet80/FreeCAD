@@ -70,23 +70,6 @@ bool Branding::readFile(const QString& fn)
     return true;
 }
 
-Branding::XmlConfig Branding::getUserDefines() const
-{
-    XmlConfig cfg;
-    QDomElement root = domDocument.documentElement();
-    QDomElement child;
-    if (!root.isNull()) {
-        child = root.firstChildElement();
-        while (!child.isNull()) {
-            std::string name = child.localName().toLatin1().constData();
-            std::string value = child.text().toUtf8().constData();
-            if (std::find(filter.begin(), filter.end(), name) != filter.end())
-                cfg[name] = value;
-            child = child.nextSiblingElement();
-        }
-    }
-    return cfg;
-}
 
 bool Branding::evaluateXML(QIODevice *device, QDomDocument& xmlDocument)
 {

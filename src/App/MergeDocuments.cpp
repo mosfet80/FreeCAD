@@ -57,10 +57,7 @@ public:
         else
             return name;
     }
-    bool doNameMapping() const override
-    {
-        return true;
-    }
+
 protected:
 
 

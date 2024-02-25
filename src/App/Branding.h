@@ -42,7 +42,6 @@ public:
     Branding();
 
     bool readFile(const QString& fn);
-    XmlConfig getUserDefines() const;
 
 private:
     QVector<std::string> filter;

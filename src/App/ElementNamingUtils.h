@@ -38,8 +38,6 @@ constexpr const char* POSTFIX_MODGEN                    = ";:MG";
 constexpr const char* POSTFIX_DUPLICATE                 = ";D";
 
 
-/// Check if a subname contains missing element
-AppExport bool hasMissingElement(const char *subname);
 
 /** Check if the name starts with elementMapPrefix()
  *
@@ -49,11 +47,7 @@ AppExport bool hasMissingElement(const char *subname);
  */
 AppExport const char *isMappedElement(const char *name);
 
-/// Strip out the trailing element name if there is mapped element name precedes it.
-AppExport std::string newElementName(const char *name);
 
-/// Strip out the mapped element name if there is one.
-AppExport std::string oldElementName(const char *name);
 
 /// Strip out the old and new element name if there is one.
 AppExport std::string noElementName(const char *name);
@@ -61,7 +55,6 @@ AppExport std::string noElementName(const char *name);
 /// Find the start of an element name in a subname
 AppExport const char *findElementName(const char *subname);
 
-AppExport const char *hasMappedElementName(const char *subname);
 
 
 }// namespace Data
