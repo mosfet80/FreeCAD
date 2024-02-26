@@ -28,7 +28,6 @@
 
 #include "PropertyRowHeights.h"
 #include "PropertyRowHeightsPy.h"
-#include "Utils.h"
 
 
 using namespace Spreadsheet;

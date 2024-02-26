@@ -28,7 +28,6 @@
 
 #include "PropertyColumnWidths.h"
 #include "PropertyColumnWidthsPy.h"
-#include "Utils.h"
 
 
 using namespace Spreadsheet;
