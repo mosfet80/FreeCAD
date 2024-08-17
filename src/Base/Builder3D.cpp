@@ -143,63 +143,6 @@ const char* PolygonOffset::styleAsString() const
     return "FILLED";
 }
 
-// -----------------------------------------------------------------------------
-
-InventorOutput::InventorOutput(std::ostream& result, Indentation& indent)
-    : result(result)
-    , indent(indent)
-{}
-
-std::ostream& InventorOutput::stream()
-{
-    return result;
-}
-
-std::ostream& InventorOutput::write()
-{
-    result << indent;
-    return result;
-}
-
-std::ostream& InventorOutput::write(const char* str)
-{
-    result << indent << str;
-    return result;
-}
-
-std::ostream& InventorOutput::write(const std::string& str)
-{
-    result << indent << str;
-    return result;
-}
-
-std::ostream& InventorOutput::writeLine()
-{
-    result << indent << '\n';
-    return result;
-}
-
-std::ostream& InventorOutput::writeLine(const char* str)
-{
-    result << indent << str << '\n';
-    return result;
-}
-
-std::ostream& InventorOutput::writeLine(const std::string& str)
-{
-    result << indent << str << '\n';
-    return result;
-}
-
-void InventorOutput::increaseIndent()
-{
-    indent.increaseIndent();
-}
-
-void InventorOutput::decreaseIndent()
-{
-    indent.decreaseIndent();
-}
 
 // -----------------------------------------------------------------------------
 
