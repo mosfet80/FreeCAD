@@ -564,8 +564,7 @@ Restart:
 
                     Base::Vector3d midpos1, dir1, norm1;
                     Base::Vector3d midpos2, dir2, norm2;
-                    if (geo1->getTypeId() != Part::GeomLineSegment::getClassTypeId()
-                        || geo2->getTypeId() != Part::GeomLineSegment::getClassTypeId()) {
+                    if (!geo1->is<Part::GeomLineSegment>() || !geo2->is<Part::GeomLineSegment>()) {
                         if (Constr->Type == Equal) {
                             double r1a = 0, r1b = 0, r2a = 0, r2b = 0;
                             double angle1,
@@ -731,8 +730,7 @@ Restart:
 
 
                             if (geo2->is<Part::GeomEllipse>() || geo2->is<Part::GeomArcOfEllipse>()
-                                || geo2->getTypeId()
-                                    == Part::GeomArcOfHyperbola::getClassTypeId()) {
+                                || geo2->is<Part::GeomArcOfHyperbola>()) {
 
                                 Base::Vector3d majDir, minDir, rvec;
                                 majDir = Base::Vector3d(cos(angle2),
@@ -944,12 +942,11 @@ Restart:
                     }
 
                     // Check if arc helpers are needed
-                    if (Constr->Second != GeoEnum::GeoUndef
-                        && Constr->SecondPos == Sketcher::PointPos::none) {
+                    if (Constr->Second != GeoEnum::GeoUndef) {
                         auto geo1 = geolistfacade.getGeometryFromGeoId(Constr->First);
                         auto geo2 = geolistfacade.getGeometryFromGeoId(Constr->Second);
 
-                        if (isArcOfCircle(*geo1)) {
+                        if (isArcOfCircle(*geo1) && Constr->FirstPos == Sketcher::PointPos::none) {
                             auto arc = static_cast<const Part::GeomArcOfCircle*>(geo1);  // NOLINT
                             radius1 = arc->getRadius();
                             center1 = arc->getCenter();
@@ -976,7 +973,7 @@ Restart:
                                 numPoints++;
                             }
                         }
-                        if (isArcOfCircle(*geo2)) {
+                        if (isArcOfCircle(*geo2) && Constr->SecondPos == Sketcher::PointPos::none) {
                             auto arc = static_cast<const Part::GeomArcOfCircle*>(geo2);  // NOLINT
                             radius2 = arc->getRadius();
                             center2 = arc->getCenter();

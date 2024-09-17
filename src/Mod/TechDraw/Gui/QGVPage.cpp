@@ -291,12 +291,6 @@ void QGVPage::activateHandler(TechDrawHandler* newHandler)
 
     toolHandler = std::unique_ptr<TechDrawHandler>(newHandler);
     toolHandler->activate(this);
-
-    // make sure receiver has focus so immediately pressing Escape will be handled by
-    // ViewProviderSketch::keyPressed() and dismiss the active handler, and not the entire
-    // sketcher editor
-    //Gui::MDIView* mdi = Gui::Application::Instance->activeDocument()->getActiveView();
-    //mdi->setFocus();
 }
 
 void QGVPage::deactivateHandler()
@@ -533,9 +527,7 @@ void QGVPage::mouseMoveEvent(QMouseEvent* event)
     if (toolHandler) {
         toolHandler->mouseMoveEvent(event);
     }
-    else {
-        m_navStyle->handleMouseMoveEvent(event);
-    }
+    m_navStyle->handleMouseMoveEvent(event);
     QGraphicsView::mouseMoveEvent(event);
 }
 
@@ -548,7 +540,12 @@ void QGVPage::mouseReleaseEvent(QMouseEvent* event)
     else {
         m_navStyle->handleMouseReleaseEvent(event);
         QGraphicsView::mouseReleaseEvent(event);
-        resetCursor();
+        if (toolHandler) {
+            toolHandler->updateCursor();
+        }
+        else {
+            resetCursor();
+        }
     }
 }
 
@@ -589,7 +586,7 @@ QPixmap QGVPage::prepareCursorPixmap(const char* iconName, QPoint& hotspot)
     // the 64x64 based hotspot position for our 32x32 based cursor pixmaps accordingly
     floatHotspot *= 0.5;
 
-#if !defined(Q_OS_WIN32) && !defined(Q_OS_MAC)
+#if !defined(Q_OS_WIN32) && !defined(Q_OS_MACOS)
     // On XCB platform, the pixmap device pixel ratio is not taken into account for cursor hot spot,
     // therefore we must take care of the transformation ourselves...
     // Refer to QTBUG-68571 - https://bugreports.qt.io/browse/QTBUG-68571

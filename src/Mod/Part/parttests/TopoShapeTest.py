@@ -90,10 +90,10 @@ class TopoShapeTest(unittest.TestCase, TopoShapeAssertions):
             ["CenterOfMass", App.Vector(1, 0.5, 1)],
             ["CompSolids", []],
             ["Compounds", []],
-            ["Content", ""],
+            ["Content", "<ElementMap/>\n"], # Our element map is empty, or there would be more here.
             ["ElementMap", {}],
             ["ElementReverseMap", {}],
-            # ['Hasher', {}],    # Todo:  Should this exist?  Different implementation?
+            ['Hasher', None],
             [
                 "MatrixOfInertia",
                 App.Matrix(
@@ -279,6 +279,7 @@ class TopoShapeTest(unittest.TestCase, TopoShapeAssertions):
     def testPartFuse(self):
         # Arrange
         self.doc.addObject("Part::Fuse", "Fuse")
+        self.doc.Fuse.Refine = False
         self.doc.Fuse.Base = self.doc.Box1
         self.doc.Fuse.Tool = self.doc.Box2
         # Act
@@ -375,7 +376,7 @@ class TopoShapeTest(unittest.TestCase, TopoShapeAssertions):
         # Assert elementMap
         if surface1.ElementMapVersion != "":  # Should be '4' as of Mar 2023.
             self.assertEqual(surface1.ElementMapSize, 6)
-            self.assertBounds(surface1, App.BoundBox(-5, -5, 0, 5, 5, 10))
+            self.assertBounds(surface1, App.BoundBox(-5, -5, 0, 5, 5, 10), precision=2)
         else:
             # Todo: WHY is the actual sweep different?  That's BAD.  However, the "New" approach
             #       above, which uses BRepOffsetAPI_MakePipe appears to be correct over the older

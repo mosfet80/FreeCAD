@@ -151,7 +151,7 @@ class TaskAssemblyInsertLink(QtCore.QObject):
         for doc in docList:
             # Create a new tree item for the document
             docItem = QtGui.QTreeWidgetItem()
-            docItem.setText(0, doc.Name + ".FCStd")
+            docItem.setText(0, doc.Label + ".FCStd")
             docItem.setIcon(0, QIcon.fromTheme("add", QIcon(":/icons/Document.svg")))
 
             if not any(
@@ -165,8 +165,12 @@ class TaskAssemblyInsertLink(QtCore.QObject):
             def process_objects(objs, item):
                 onlyParts = self.form.CheckBox_ShowOnlyParts.isChecked()
                 for obj in objs:
-                    if obj.Name == self.assembly.Name:
+                    if obj == self.assembly:
                         continue  # Skip current assembly
+
+                    if obj in self.assembly.InListRecursive:
+                        continue  # Prevent dependency loop.
+                        # For instance if asm1/asm2 with asm2 active, we don't want to have asm1 in the list
 
                     if (
                         obj.isDerivedFrom("Part::Feature")
@@ -180,7 +184,7 @@ class TaskAssemblyInsertLink(QtCore.QObject):
                                     (not onlyParts and child.isDerivedFrom("Part::Feature"))
                                     or child.isDerivedFrom("App::Part")
                                 )
-                                for child in obj.OutListRecursive
+                                for child in obj.ViewObject.claimChildrenRecursive()
                             ):
                                 continue  # Skip this object if no relevant children
 
@@ -201,10 +205,32 @@ class TaskAssemblyInsertLink(QtCore.QObject):
                         if obj.isDerivedFrom("App::Part") or obj.isDerivedFrom(
                             "App::DocumentObjectGroup"
                         ):
-                            process_objects(obj.OutList, objItem)
+                            process_objects(obj.ViewObject.claimChildren(), objItem)
 
-            process_objects(doc.RootObjectsIgnoreLinks, docItem)
+            guiDoc = Gui.getDocument(doc.Name)
+            process_objects(guiDoc.TreeRootObjects, docItem)
             self.form.partList.expandAll()
+
+        self.adjustTreeWidgetSize()
+
+    def adjustTreeWidgetSize(self):
+        # Adjust the height of the part list based on item count
+        item_count = 1
+
+        def count_items(item):
+            nonlocal item_count
+            item_count += 1
+            for i in range(item.childCount()):
+                count_items(item.child(i))
+
+        for i in range(self.form.partList.topLevelItemCount()):
+            count_items(self.form.partList.topLevelItem(i))
+
+        item_height = self.form.partList.sizeHintForRow(0)
+        total_height = item_count * item_height
+        max_height = 500
+
+        self.form.partList.setMinimumHeight(min(total_height, max_height))
 
     def onFilterChange(self):
         filter_str = self.form.filterPartList.text().strip().lower()
@@ -322,7 +348,9 @@ class TaskAssemblyInsertLink(QtCore.QObject):
 
         translation = App.Vector()
         resetThreshold = (screenCorner - screenCenter).Length * 0.1
-        if (self.prevScreenCenter - screenCenter).Length > resetThreshold:
+        if len(self.insertionStack) == 1:
+            translation = App.Vector()  # No translation for first object.
+        elif (self.prevScreenCenter - screenCenter).Length > resetThreshold:
             self.totalTranslation = App.Vector()
             self.prevScreenCenter = screenCenter
         else:
@@ -331,8 +359,14 @@ class TaskAssemblyInsertLink(QtCore.QObject):
         insertionDict["translation"] = translation
         self.totalTranslation += translation
 
-        bboxCenter = addedObject.ViewObject.getBoundingBox().Center
-        addedObject.Placement.Base = screenCenter - bboxCenter + self.totalTranslation
+        originX, originY = view.getPointOnViewport(App.Vector() + translation)
+        if originX > 0 and originX < x and originY > 0 and originY < y:
+            # If the origin is within view then we insert at the origin.
+            addedObject.Placement.Base = self.totalTranslation
+        else:
+            #
+            bboxCenter = addedObject.ViewObject.getBoundingBox().Center
+            addedObject.Placement.Base = screenCenter - bboxCenter + self.totalTranslation
 
         self.prevScreenCenter = screenCenter
 

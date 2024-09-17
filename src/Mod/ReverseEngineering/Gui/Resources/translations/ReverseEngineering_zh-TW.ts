@@ -233,10 +233,10 @@
       <translation>佈置</translation>
     </message>
     <message>
-      <location filename="../../FitBSplineCurve.cpp" line="139"/>
       <location filename="../../FitBSplineSurface.cpp" line="231"/>
-      <source>Fit B-Spline</source>
-      <translation type="unfinished">Fit B-Spline</translation>
+      <location filename="../../FitBSplineCurve.cpp" line="139"/>
+      <source>Fit B-spline</source>
+      <translation type="unfinished">Fit B-spline</translation>
     </message>
     <message>
       <location filename="../../Poisson.cpp" line="83"/>
@@ -692,7 +692,7 @@
     <message>
       <location filename="../../FitBSplineCurve.ui" line="174"/>
       <source>Curvature</source>
-      <translation type="unfinished">Curvature</translation>
+      <translation>Curvature</translation>
     </message>
   </context>
   <context>
