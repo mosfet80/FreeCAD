@@ -131,7 +131,7 @@ CmdPartBox2::CmdPartBox2()
     sToolTipText  = QT_TR_NOOP("Create a box solid without dialog");
     sWhatsThis    = "Part_Box2";
     sStatusTip    = sToolTipText;
-    sPixmap       = "Part_Box";
+    sPixmap       = "Part_Box_Parametric";
 }
 
 void CmdPartBox2::activated(int iMsg)
@@ -172,7 +172,7 @@ CmdPartBox3::CmdPartBox3()
     sToolTipText  = QT_TR_NOOP("Create a box solid without dialog");
     sWhatsThis    = "Part_Box3";
     sStatusTip    = sToolTipText;
-    sPixmap       = "Part_Box";
+    sPixmap       = "Part_Box_Parametric";
 }
 
 void CmdPartBox3::activated(int iMsg)
@@ -386,7 +386,7 @@ void CmdPartCommon::activated(int iMsg)
     }
     if (numShapes < 2) {
         QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Wrong selection"),
-            QObject::tr("Select two shapes or more, please. Or, select one compound containing two or more shapes to compute common between."));
+            QObject::tr("Please select two shapes or more. Or, select one compound containing two or more shapes to compute the intersection between."));
         return;
     }
 
@@ -462,7 +462,7 @@ void CmdPartFuse::activated(int iMsg)
     }
     if (numShapes < 2) {
         QMessageBox::warning(Gui::getMainWindow(), QObject::tr("Wrong selection"),
-            QObject::tr("Select two shapes or more, please. Or, select one compound containing two or more shapes to be fused."));
+            QObject::tr("Please select two shapes or more. Or, select one compound containing two or more shapes to be fused."));
         return;
     }
 
@@ -944,7 +944,7 @@ CmdPartImport::CmdPartImport()
 {
     sAppModule    = "Part";
     sGroup        = QT_TR_NOOP("Part");
-    sMenuText     = QT_TR_NOOP("Import CAD...");
+    sMenuText     = QT_TR_NOOP("Import CAD file...");
     sToolTipText  = QT_TR_NOOP("Imports a CAD file");
     sWhatsThis    = "Part_Import";
     sStatusTip    = sToolTipText;
@@ -1007,7 +1007,7 @@ CmdPartExport::CmdPartExport()
 {
     sAppModule    = "Part";
     sGroup        = QT_TR_NOOP("Part");
-    sMenuText     = QT_TR_NOOP("Export CAD...");
+    sMenuText     = QT_TR_NOOP("Export CAD file...");
     sToolTipText  = QT_TR_NOOP("Exports to a CAD file");
     sWhatsThis    = "Part_Export";
     sStatusTip    = sToolTipText;
@@ -1059,7 +1059,7 @@ CmdPartImportCurveNet::CmdPartImportCurveNet()
     sToolTipText= QT_TR_NOOP("Import a curve network");
     sWhatsThis  = "Part_ImportCurveNet";
     sStatusTip  = sToolTipText;
-    sPixmap     = "Part_Box";
+    sPixmap     = "Part_Box_Parametric";
 }
 
 void CmdPartImportCurveNet::activated(int iMsg)
@@ -2112,7 +2112,7 @@ void CmdColorPerFace::activated(int iMsg)
         return;
     PartGui::ViewProviderPartExt* vp = dynamic_cast<PartGui::ViewProviderPartExt*>(Gui::Application::Instance->getViewProvider(sel.front()));
     if (vp)
-        vp->changeFaceColors();
+        vp->changeFaceAppearances();
 }
 
 bool CmdColorPerFace::isActive()

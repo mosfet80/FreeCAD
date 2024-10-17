@@ -57,28 +57,68 @@ Feature::Feature()
     ADD_PROPERTY(BaseFeature,(nullptr));
     ADD_PROPERTY_TYPE(_Body,(nullptr),"Base",(App::PropertyType)(
                 App::Prop_ReadOnly|App::Prop_Hidden|App::Prop_Output|App::Prop_Transient),0);
+    ADD_PROPERTY(SuppressedShape,(TopoShape()));
     Placement.setStatus(App::Property::Hidden, true);
     BaseFeature.setStatus(App::Property::Hidden, true);
 
     App::SuppressibleExtension::initExtension(this);
-    Suppressed.setStatus(App::Property::Status::Hidden, true); //Todo: remove when TNP fixed
 }
 
 App::DocumentObjectExecReturn* Feature::recompute()
 {
-    try {
-        auto baseShape = getBaseTopoShape();
-        if (Suppressed.getValue()) {
-            this->Shape.setValue(baseShape.getShape());
-            return StdReturn;
-        }
-    }
-    catch (Base::Exception&) {
-        //invalid BaseShape
-        Suppressed.setValue(false);
+    SuppressedShape.setValue(TopoShape());
+
+    if (!Suppressed.getValue()) {
+        return Part::Feature::recompute();
     }
 
-    return DocumentObject::recompute();
+    bool failed = false;
+    try {
+        std::unique_ptr<App::DocumentObjectExecReturn> ret(Part::Feature::recompute());
+        if (ret) {
+            throw Base::RuntimeError(ret->Why);
+        }
+    }
+    catch (Base::AbortException&) {
+        throw;
+    }
+    catch (Base::Exception& e) {
+        failed = true;
+        e.ReportException();
+        FC_ERR("Failed to recompute suppressed feature " << getFullName());
+    }
+
+    if (!failed) {
+        updateSuppressedShape();
+    }
+    else {
+        Shape.setValue(getBaseTopoShape(true));
+    }
+    return App::DocumentObject::StdReturn;
+}
+
+void Feature::updateSuppressedShape()
+{
+    auto baseShape = getBaseTopoShape(true);
+    TopoShape res(getID());
+    TopoShape shape = Shape.getShape();
+    shape.setPlacement(Base::Placement());
+    std::vector<TopoShape> generated;
+    if(!shape.isNull()) {
+        unsigned count = shape.countSubShapes(TopAbs_FACE);
+        for(unsigned i=1; i<=count; ++i) {
+            Data::MappedName mapped = shape.getMappedName(
+                    Data::IndexedName::fromConst("Face", i));
+            if(mapped && shape.isElementGenerated(mapped))
+                generated.push_back(shape.getSubTopoShape(TopAbs_FACE, i));
+        }
+    }
+    if(!generated.empty()) {
+        res.makeElementCompound(generated);
+        res.setPlacement(Placement.getValue());
+    }
+    Shape.setValue(baseShape);
+    SuppressedShape.setValue(res);
 }
 
 short Feature::mustExecute() const
@@ -88,31 +128,24 @@ short Feature::mustExecute() const
     return Part::Feature::mustExecute();
 }
 
-// TODO: Toponaming April 2024 Deprecated in favor of TopoShape method.  Remove when possible.
-TopoDS_Shape Feature::getSolid(const TopoDS_Shape& shape)
-{
-    if (shape.IsNull())
-        Standard_Failure::Raise("Shape is null");
-    TopExp_Explorer xp;
-    xp.Init(shape,TopAbs_SOLID);
-    if (xp.More()) {
-        return xp.Current();
-    }
-
-    return {};
-}
-
 TopoShape Feature::getSolid(const TopoShape& shape)
 {
     if (shape.isNull()) {
         throw Part::NullShapeException("Null shape");
     }
+
+    // If single solid rule is not enforced  we simply return the shape as is
+    if (singleSolidRuleMode() != Feature::SingleSolidRuleMode::Enforced) {
+        return shape;
+    }
+
     int count = shape.countSubShapes(TopAbs_SOLID);
-    if(count) {
-        auto res = shape.getSubTopoShape(TopAbs_SOLID,1);
+    if (count) {
+        auto res = shape.getSubTopoShape(TopAbs_SOLID, 1);
         res.fixSolidOrientation();
         return res;
     }
+
     return shape;
 }
 
@@ -151,7 +184,31 @@ int Feature::countSolids(const TopoDS_Shape& shape, TopAbs_ShapeEnum type)
     return result;
 }
 
+bool Feature::isSingleSolidRuleSatisfied(const TopoDS_Shape& shape, TopAbs_ShapeEnum type)
+{
+    if (singleSolidRuleMode() == Feature::SingleSolidRuleMode::Disabled) {
+        return true;
+    }
 
+    int solidCount = countSolids(shape, type);
+
+    return solidCount <= 1;
+}
+
+
+Feature::SingleSolidRuleMode Feature::singleSolidRuleMode()
+{
+    auto body = getFeatureBody();
+
+    // When the feature is not part of an body (which should not happen) let's stay with the default
+    if (!body) {
+        return SingleSolidRuleMode::Enforced;
+    }
+
+    auto areCompoundSolidsAllowed = body->AllowCompound.getValue();
+
+    return areCompoundSolidsAllowed ? SingleSolidRuleMode::Disabled : SingleSolidRuleMode::Enforced;
+}
 
 const gp_Pnt Feature::getPointFromFace(const TopoDS_Face& f)
 {
@@ -326,7 +383,7 @@ App::DocumentObject *Feature::getSubObject(const char *subname,
         if (dot) {
             auto body = PartDesign::Body::findBodyOf(this);
             if (body) {
-                auto feat = body->Group.find(std::string(subname, dot));
+                auto feat = body->Group.findUsingMap(std::string(subname, dot));
                 if (feat) {
                     Base::Matrix4D _mat;
                     if (!transform) {

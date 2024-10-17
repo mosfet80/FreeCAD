@@ -152,7 +152,11 @@ public:
     SoCamera* getCamera() const;
     void setCameraOrientation(const SbRotation& orientation, SbBool moveToCenter = false);
     void translateCamera(const SbVec3f& translation);
+
+#if (COIN_MAJOR_VERSION * 100 + COIN_MINOR_VERSION * 10 + COIN_MICRO_VERSION < 403)
     void findBoundingSphere();
+#endif
+
     void reorientCamera(SoCamera* camera, const SbRotation& rotation);
     void reorientCamera(SoCamera* camera, const SbRotation& rotation, const SbVec3f& rotationCenter);
 
@@ -284,7 +288,9 @@ private:
     float sensitivity;
     SbBool resetcursorpos;
 
+#if (COIN_MAJOR_VERSION * 100 + COIN_MINOR_VERSION * 10 + COIN_MICRO_VERSION < 403)
     SbSphere boundingSphere;
+#endif
 };
 
 /** Sub-classes of this class appear in the preference dialog where users can
@@ -409,6 +415,9 @@ public:
 
 protected:
     SbBool processSoEvent(const SoEvent * const ev) override;
+
+private:
+    SbBool blockPan {false}; // Used to block the first pan in a mouse movement to prevent big jumps
 };
 
 class GuiExport OpenCascadeNavigationStyle : public UserNavigationStyle {

@@ -167,7 +167,7 @@ void DlgPrefsTechDrawDimensionsImp::loadSettings()
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/Mod/TechDraw/dimensioning");
     bool singleTool = hGrp->GetBool("SingleDimensioningTool", true);
-    bool SeparatedTools = hGrp->GetBool("SeparatedDimensioningTools", true);
+    bool SeparatedTools = hGrp->GetBool("SeparatedDimensioningTools", false);
     int index = SeparatedTools ? (singleTool ? 2 : 1) : 0;
     ui->dimensioningMode->setCurrentIndex(index);
     setProperty("dimensioningMode", index);
@@ -206,6 +206,24 @@ void DlgPrefsTechDrawDimensionsImp::changeEvent(QEvent *e)
     else {
         QWidget::changeEvent(e);
     }
+}
+
+void DlgPrefsTechDrawDimensionsImp::resetSettingsToDefaults()
+{
+    ParameterGrp::handle hGrp;
+
+    hGrp = App::GetApplication().GetParameterGroupByPath(
+        "User parameter:BaseApp/Preferences/Mod/TechDraw/dimensioning");
+    // reset "Dimension tools" parameters
+    hGrp->RemoveBool("SingleDimensioningTool");
+    hGrp->RemoveBool("SeparatedDimensioningTools");
+
+    // reset "radius/diameter mode for dimensioning" parameter
+    hGrp->RemoveBool("DimensioningDiameter");
+    hGrp->RemoveBool("DimensioningRadius");
+
+    // finally reset all the parameters associated to Gui::Pref* widgets
+    PreferencePage::resetSettingsToDefaults();
 }
 
 int DlgPrefsTechDrawDimensionsImp::prefArrowStyle() const
