@@ -52,11 +52,16 @@
 # include <QToolBar>
 # include <QUrlQuery>
 # include <QWhatsThis>
+# include <QWindow>
 # include <QPushButton>
 #endif
 
-#if defined(Q_OS_WIN) && QT_VERSION < QT_VERSION_CHECK(6,0,0)
-# include <QtPlatformHeaders/QWindowsWindowFunctions>
+#if defined(Q_OS_WIN)
+    #if (QT_VERSION < QT_VERSION_CHECK(6,0,0))
+        #include <QtPlatformHeaders/QWindowsWindowFunctions>
+    #else
+        #include <qpa/qplatformwindow_p.h>
+    #endif
 #endif
 
 #include <boost/algorithm/string/predicate.hpp>
@@ -65,6 +70,7 @@
 #include <App/Document.h>
 #include <App/DocumentObject.h>
 #include <App/DocumentObjectGroup.h>
+#include <App/SafeMode.h>
 #include <Base/ConsoleObserver.h>
 #include <Base/Parameter.h>
 #include <Base/Exception.h>
@@ -86,6 +92,7 @@
 #include "DownloadManager.h"
 #include "FileDialog.h"
 #include "MenuManager.h"
+#include "ModuleIO.h"
 #include "NotificationArea.h"
 #include "OverlayManager.h"
 #include "ProgressBar.h"
@@ -387,6 +394,15 @@ MainWindow::MainWindow(QWidget * parent, Qt::WindowFlags f)
     d->whatsthis = false;
     d->assistant = new Assistant();
 
+#if (QT_VERSION >= QT_VERSION_CHECK(6,0,0))
+    // this forces QT to switch to OpenGL mode, this prevents delay and flickering of the window
+    // after opening project and prevent issues with double initialization of the window
+    //
+    // https://stackoverflow.com/questions/76026196/how-to-force-qt-to-use-the-opengl-window-type
+    auto _OpenGLWidget = new QOpenGLWidget(this);
+    _OpenGLWidget->move(QPoint(-100,-100));
+#endif
+
     // global access
     instance = this;
 
@@ -436,7 +452,9 @@ MainWindow::MainWindow(QWidget * parent, Qt::WindowFlags f)
     d->mdiArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     d->mdiArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     d->mdiArea->setOption(QMdiArea::DontMaximizeSubWindowOnActivation, false);
+#ifndef HAS_QTBUG_129596
     d->mdiArea->setActivationOrder(QMdiArea::ActivationHistoryOrder);
+#endif
     d->mdiArea->setBackground(QBrush(QColor(160,160,160)));
     setCentralWidget(d->mdiArea);
 
@@ -599,9 +617,17 @@ bool MainWindow::setupTaskView()
 {
     // Task view
     if (d->hiddenDockWindows.find("Std_TaskView") == std::string::npos) {
+        // clang-format off
+        auto group = App::GetApplication().GetUserParameter()
+                      .GetGroup("BaseApp")
+                     ->GetGroup("Preferences")
+                     ->GetGroup("DockWindows")
+                     ->GetGroup("TaskView");
+        // clang-format on
         auto taskView = new Gui::TaskView::TaskView(this);
-        taskView->setObjectName
-            (QString::fromLatin1(QT_TRANSLATE_NOOP("QDockWidget","Tasks")));
+        bool restore = group->GetBool("RestoreWidth", taskView->shouldRestoreWidth());
+        taskView->setRestoreWidth(restore);
+        taskView->setObjectName(QString::fromLatin1(QT_TRANSLATE_NOOP("QDockWidget","Tasks")));
         taskView->setMinimumWidth(210);
 
         DockWindowManager* pDockMgr = DockWindowManager::instance();
@@ -801,14 +827,6 @@ QMenu* MainWindow::createPopupMenu ()
     populateDockWindowMenu(menu);
     menu->addSeparator();
     populateToolBarMenu(menu);
-    QMenu *undockMenu = new QMenu(menu);
-    ToolBarManager::getInstance()->populateUndockMenu(undockMenu);
-    if (undockMenu->actions().isEmpty()) {
-        delete undockMenu;
-    }
-    else {
-        menu->addMenu(undockMenu);
-    }
     menu->addSeparator();
     Workbench* wb = WorkbenchManager::instance()->active();
     if (wb) {
@@ -1552,16 +1570,16 @@ void MainWindow::hideEvent(QHideEvent* e)
     QMainWindow::hideEvent(e);
 }
 
-void MainWindow::processMessages(const QList<QByteArray> & msg)
+void MainWindow::processMessages(const QList<QString> & msg)
 {
     // handle all the messages to open files
     try {
         WaitCursor wc;
         std::list<std::string> files;
-        QByteArray action("OpenFile:");
+        QString action = QString::fromStdString("OpenFile:");
         for (const auto & it : msg) {
             if (it.startsWith(action))
-                files.emplace_back(it.mid(action.size()).constData());
+                files.emplace_back(it.mid(action.size()).toStdString());
         }
         files = App::Application::processFiles(files);
         for (const auto & file : files) {
@@ -1579,7 +1597,7 @@ void MainWindow::delayedStartup()
     if (App::Application::Config()["RunMode"] == "Internal") {
         QTimer::singleShot(1000, this, []{
             try {
-                Base::Interpreter().runString(
+                    string command =
                     "import sys\n"
                     "import FreeCAD\n"
                     "import QtUnitGui\n\n"
@@ -1587,8 +1605,11 @@ void MainWindow::delayedStartup()
                     "QtUnitGui.addTest(testCase)\n"
                     "QtUnitGui.setTest(testCase)\n"
                     "result = QtUnitGui.runTest()\n"
-                    "sys.stdout.flush()\n"
-                    "sys.exit(0 if result else 1)");
+                    "sys.stdout.flush()\n";
+                    if (App::Application::Config()["ExitTests"] == "yes") {
+                        command += "sys.exit(0 if result else 1)";
+                    }
+                    Base::Interpreter().runString(command.c_str());
             }
             catch (const Base::SystemExitException&) {
                 throw;
@@ -1633,6 +1654,22 @@ void MainWindow::delayedStartup()
 
     if (hGrp->GetBool("RecoveryEnabled", true)) {
         Application::Instance->checkForPreviousCrashes();
+    }
+
+    if (SafeMode::SafeModeEnabled()) {
+        auto safeModePopup = QMessageBox(
+            QMessageBox::Information,
+            tr("Safe mode enabled"),
+            tr("FreeCAD is now running in safe mode."),
+            QMessageBox::Ok
+        );
+        safeModePopup.setInformativeText(
+            tr(
+                "Safe mode temporarily disables your configurations and addons."
+                " Restart the application to exit safe mode."
+            )
+        );
+        safeModePopup.exec();
     }
 }
 
@@ -1800,10 +1837,17 @@ void MainWindow::loadWindowSettings()
     max ? showMaximized() : show();
 
     // make menus and tooltips usable in fullscreen under Windows, see issue #7563
-#if defined(Q_OS_WIN) && QT_VERSION < QT_VERSION_CHECK(6,0,0)
-    if (QWindow* win = this->windowHandle()) {
-        QWindowsWindowFunctions::setHasBorderInFullScreen(win, true);
-    }
+#if defined(Q_OS_WIN)
+    #if QT_VERSION < QT_VERSION_CHECK(6,0,0)
+        if (QWindow* win = this->windowHandle()) {
+            QWindowsWindowFunctions::setHasBorderInFullScreen(win, true);
+        }
+    #else
+        using namespace QNativeInterface::Private;
+        if (auto *windowsWindow = dynamic_cast<QWindowsWindow*>(this->windowHandle())) {
+            windowsWindow->setHasBorderInFullScreen(true);
+        }
+    #endif
 #endif
 
     statusBar()->setVisible(showStatusBar);
@@ -1896,7 +1940,7 @@ void MainWindow::startSplasher()
         if (hGrp->GetBool("ShowSplasher", true)) {
             d->splashscreen = new SplashScreen(this->splashImage());
 
-            if (!hGrp->GetBool("ShowSplasherMessages", true)) {
+            if (!hGrp->GetBool("ShowSplasherMessages", false)) {
                 d->splashscreen->setShowMessages(false);
             }
 
@@ -1956,11 +2000,12 @@ QPixmap MainWindow::aboutImage() const
 void MainWindow::renderDevBuildWarning(
     QPainter &painter,
     const QPoint startPosition,
-    const QSize maxSize)
+    const QSize maxSize,
+    QColor color)
 {
     // Create a background box that fades out the artwork for better legibility
-    QColor fader (Qt::black);
-    constexpr float halfDensity (0.5);
+    QColor fader (Qt::white);
+    constexpr float halfDensity (0.65F);
     fader.setAlphaF(halfDensity);
     QBrush fillBrush(fader, Qt::BrushStyle::SolidPattern);
     painter.setBrush(fillBrush);
@@ -1991,6 +2036,7 @@ void MainWindow::renderDevBuildWarning(
     int boxHeight = static_cast<int>(lineHeight*lineExpansionFactor);
 
     // Draw the background rectangle and the text
+    painter.setPen(color);
     painter.drawRect(startPosition.x(), startPosition.y(), boxWidth, boxHeight);
     painter.drawText(startPosition.x()+padding, startPosition.y()+lineHeight, devWarningLine1);
     painter.drawText(startPosition.x()+padding, startPosition.y()+2*lineHeight, devWarningLine2);
@@ -2019,9 +2065,20 @@ QPixmap MainWindow::splashImage() const
     // now try the icon paths
     float pixelRatio (1.0);
     if (splash_image.isNull()) {
+        // determine the count of splashes
+        QStringList pixmaps = Gui::BitmapFactory().findIconFiles().filter(QString::fromStdString(splash_path));
+        // divide by 2 since there's two sets (normal and 2x)
+        // minus 1 to ignore the default splash that isn't numbered
+        int splash_count = pixmaps.count()/2 - 1;
+
+        // set a random splash path
+        if (splash_count > 0) {
+            int random = rand() % splash_count;
+            splash_path += std::to_string(random);
+        }
         if (qApp->devicePixelRatio() > 1.0) {
             // For HiDPI screens, we have a double-resolution version of the splash image
-            splash_path += "2x";
+            splash_path += "_2x";
             splash_image = Gui::BitmapFactory().pixmap(splash_path.c_str());
             splash_image.setDevicePixelRatio(2.0);
             pixelRatio = 2.0;
@@ -2033,7 +2090,8 @@ QPixmap MainWindow::splashImage() const
 
     // include application name and version number
     std::map<std::string,std::string>::const_iterator tc = App::Application::Config().find("SplashInfoColor");
-    if (tc != App::Application::Config().end()) {
+    std::map<std::string,std::string>::const_iterator wc = App::Application::Config().find("SplashWarningColor");
+    if (tc != App::Application::Config().end() && wc != App::Application::Config().end()) {
         QString title = qApp->applicationName();
         QString major   = QString::fromLatin1(App::Application::Config()["BuildVersionMajor"].c_str());
         QString minor   = QString::fromLatin1(App::Application::Config()["BuildVersionMinor"].c_str());
@@ -2074,7 +2132,7 @@ QPixmap MainWindow::splashImage() const
         int h = splash_image.height();
 
         QFont fontVer = painter.font();
-        fontVer.setPointSizeF(14.0);
+        fontVer.setPointSizeF(11.0);
         QFontMetrics metricVer(fontVer);
         int v = QtTools::horizontalAdvance(metricVer, version);
 
@@ -2090,8 +2148,7 @@ QPixmap MainWindow::splashImage() const
             y = h - 20;
         }
 
-        QColor color;
-        color.setNamedColor(QString::fromLatin1(tc->second.c_str()));
+        QColor color(QString::fromLatin1(tc->second.c_str()));
         if (color.isValid()) {
             painter.setPen(color);
             painter.setFont(fontExe);
@@ -2100,13 +2157,16 @@ QPixmap MainWindow::splashImage() const
                 painter.drawText(x, y, title);
             }
             painter.setFont(fontVer);
-            painter.drawText(x + (l + 5), y, version);
-            if (suffix == QLatin1String("dev")) {
+            painter.drawText(x + (l + 235), y - 7, version);
+            QColor warningColor(QString::fromLatin1(wc->second.c_str()));
+            if (suffix == QLatin1String("dev") && warningColor.isValid()) {
+                fontVer.setPointSizeF(14.0);
+                painter.setFont(fontVer);
                 const int lineHeight = metricVer.lineSpacing();
-                const int padding {10}; // Distance from the edge of the graphic's bounding box
-                QPoint startPosition(padding, y + lineHeight);
+                const int padding {45}; // Distance from the edge of the graphic's bounding box
+                QPoint startPosition(padding, y + lineHeight*2);
                 QSize maxSize(w/pixelRatio - 2*padding, lineHeight * 3);
-                MainWindow::renderDevBuildWarning(painter, startPosition, maxSize);
+                MainWindow::renderDevBuildWarning(painter, startPosition, maxSize, warningColor);
             }
             painter.end();
         }
@@ -2369,12 +2429,7 @@ void MainWindow::loadUrls(App::Document* doc, const QList<QUrl>& urls)
     }
 
     QByteArray docName = doc ? QByteArray(doc->getName()) : qApp->translate("StdCmdNew","Unnamed").toUtf8();
-    SelectModule::Dict dict = SelectModule::importHandler(files);
-    // load the files with the associated modules
-    for (SelectModule::Dict::iterator it = dict.begin(); it != dict.end(); ++it) {
-        // if the passed document name doesn't exist the module should create it, if needed
-        Application::Instance->importFrom(it.key().toUtf8(), docName, it.value().toLatin1());
-    }
+    ModuleIO::importFiles(files, docName);
 }
 
 void MainWindow::changeEvent(QEvent *e)
@@ -2555,7 +2610,7 @@ void MainWindow::setWindowTitle(const QString& string)
     }
 
     // allow to disable version number
-    ParameterGrp::handle hGen = +App::GetApplication().GetParameterGroupByPath(
+    ParameterGrp::handle hGen = App::GetApplication().GetParameterGroupByPath(
         "User parameter:BaseApp/Preferences/General");
     bool showVersion = hGen->GetBool("ShowVersionInTitle", true);
 
@@ -2570,6 +2625,10 @@ void MainWindow::setWindowTitle(const QString& string)
     }
     else {
         title = appname;
+    }
+
+    if (SafeMode::SafeModeEnabled()) {
+        title = QString::fromUtf8("%1 (%2)").arg(title, tr("Safe Mode"));
     }
 
     if (!string.isEmpty()) {
