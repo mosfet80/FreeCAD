@@ -54,13 +54,10 @@ ViewProviderRobotObject::ViewProviderRobotObject()
 
     pcRobotRoot = new Gui::SoFCSelection();
     pcRobotRoot->highlightMode = Gui::SoFCSelection::OFF;
-    // pcRobotRoot->selectionMode = Gui::SoFCSelection::SEL_OFF;
-    // pcRobotRoot->style = Gui::SoFCSelection::BOX;
     pcRobotRoot->ref();
 
     pcSimpleRoot = new Gui::SoFCSelection();
     pcSimpleRoot->highlightMode = Gui::SoFCSelection::OFF;
-    // pcSimpleRoot->selectionMode = Gui::SoFCSelection::SEL_OFF;
     pcSimpleRoot->ref();
 
     pcOffRoot = new SoGroup();
@@ -368,10 +365,6 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
             toolShape->setTransformation(
                 (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix());
         }
-        // pcTcpTransform->translation =
-        // SbVec3f(loc.getPosition().x,loc.getPosition().y,loc.getPosition().z);
-        // pcTcpTransform->rotation =
-        // SbRotation(loc.getRotation()[0],loc.getRotation()[1],loc.getRotation()[2],loc.getRotation()[3]);
     }
     else if (prop == &robObj->ToolShape) {
         App::DocumentObject* o = robObj->ToolShape.getValue<App::DocumentObject*>();
@@ -379,7 +372,6 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
         if (o
             && (o->isDerivedFrom(Part::Feature::getClassTypeId())
                 || o->isDerivedFrom(App::VRMLObject::getClassTypeId()))) {
-            // Part::Feature *p = dynamic_cast<Part::Feature *>(o);
             toolShape = Gui::Application::Instance->getViewProvider(o);
             toolShape->setTransformation(
                 (robObj->Tcp.getValue() * (robObj->ToolBase.getValue().inverse())).toMatrix());
@@ -389,6 +381,7 @@ void ViewProviderRobotObject::updateData(const App::Property* prop)
         }
     }
 }
+
 void ViewProviderRobotObject::setAxisTo(float A1,
                                         float A2,
                                         float A3,
@@ -444,7 +437,10 @@ void ViewProviderRobotObject::DraggerMotionCallback(SoDragger* dragger)
     SbVec3f center(Tcp.getPosition().x, Tcp.getPosition().y, Tcp.getPosition().z);
     M.getTransform(translation, rotation, scaleFactor, scaleOrientation);
     rotation.getValue(q0, q1, q2, q3);
-    // Base::Console().Message("M %f %f %f\n", M[3][0], M[3][1], M[3][2]);
+    Base::Rotation rot(q0, q1, q2, q3);
+    Base::Vector3d pos(translation[0], translation[1], translation[2]);
+    robObj->Tcp.setValue(Base::Placement(pos, rot));
+}ssage("M %f %f %f\n", M[3][0], M[3][1], M[3][2]);
     Base::Rotation rot(q0, q1, q2, q3);
     Base::Vector3d pos(translation[0], translation[1], translation[2]);
     robObj->Tcp.setValue(Base::Placement(pos, rot));
