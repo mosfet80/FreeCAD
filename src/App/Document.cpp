@@ -178,32 +178,6 @@ void Document::setStatus(Status pos, bool on)
     d->StatusBits.set((size_t)pos, on);
 }
 
-// bool _has_cycle_dfs(const DependencyList & g, vertex_t u, default_color_type * color)
-//{
-//   color[u] = gray_color;
-//   graph_traits < DependencyList >::adjacency_iterator vi, vi_end;
-//   for (tie(vi, vi_end) = adjacent_vertices(u, g); vi != vi_end; ++vi)
-//     if (color[*vi] == white_color)
-//       if (has_cycle_dfs(g, *vi, color))
-//         return true;            // cycle detected, return immediately
-//       else if (color[*vi] == gray_color)        // *vi is an ancestor!
-//         return true;
-//   color[u] = black_color;
-//   return false;
-// }
-
-bool Document::checkOnCycle()
-{
-#if 0
-  std::vector < default_color_type > color(num_vertices(_DepList), white_color);
-  graph_traits < DependencyList >::vertex_iterator vi, vi_end;
-  for (tie(vi, vi_end) = vertices(_DepList); vi != vi_end; ++vi)
-    if (color[*vi] == white_color)
-      if (_has_cycle_dfs(_DepList, *vi, &color[0]))
-        return true;
-#endif
-    return false;
-}
 
 bool Document::undo(int id)
 {
