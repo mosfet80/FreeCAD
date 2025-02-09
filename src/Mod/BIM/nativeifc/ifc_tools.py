@@ -673,18 +673,12 @@ def add_properties(
         elif isinstance(value, ifcopenshell.entity_instance):
             if links:
                 if attr not in obj.PropertiesList:
-                    # value = create_object(value, obj.Document)
                     obj.addProperty("App::PropertyLink", attr, "IFC")
-                # setattr(obj, attr, value)
         elif isinstance(value, (list, tuple)) and value:
             if isinstance(value[0], ifcopenshell.entity_instance):
                 if links:
                     if attr not in obj.PropertiesList:
-                        # nvalue = []
-                        # for elt in value:
-                        #    nvalue.append(create_object(elt, obj.Document))
                         obj.addProperty("App::PropertyLinkList", attr, "IFC")
-                    # setattr(obj, attr, nvalue)
         elif data_type == "enum":
             if attr not in obj.PropertiesList:
                 obj.addProperty("App::PropertyEnumeration", attr, "IFC")
@@ -917,7 +911,6 @@ def set_attribute(ifcfile, element, attribute, value):
         value = value.Value * f
     if attribute == "Class":
         if value != element.is_a():
-            if value and value.startswith("Ifc"):
                 cmd = "root.reassign_class"
                 FreeCAD.Console.PrintLog(
                     "Changing IFC class value: "
@@ -973,7 +966,6 @@ def set_colors(obj, colors):
                 colors = [colors]
             # set the first color to opaque otherwise it spoils object transparency
             if len(colors) > 1:
-                #colors[0] = colors[0][:3] + (0.0,)
                 # TEMP HACK: if multiple colors, set everything to opaque because it looks wrong
                 colors = [color[:3] + (1.0,) for color in colors]
             sapp = []
@@ -985,7 +977,6 @@ def set_colors(obj, colors):
                     sapp_mat.DiffuseColor = color[:3] + (1.0 - color[3],)
                 sapp_mat.Transparency = 1.0 - color[3] if len(color) > 3 else 0.0
                 sapp.append(sapp_mat)
-            #print(vobj.Object.Label,[[m.DiffuseColor,m.Transparency] for m in sapp])
             vobj.ShapeAppearance = sapp
 
 
@@ -1224,7 +1215,6 @@ def aggregate(obj, parent, mode=None):
         if hasattr(child,"Host") and child.Host == obj:
             aggregate(child, newobj)
         elif hasattr(child,"Hosts") and obj in child.Hosts:
-            #op = create_product(child, newobj, ifcfile, ifcclass="IfcOpeningElement")
             aggregate(child, newobj)
     delete = not (PARAMS.GetBool("KeepAggregated", False))
     if new and delete and base:
@@ -1488,7 +1478,6 @@ def get_elem_attribs(ifcentity):
             attr = ifcentity.attribute_name(anumber)
         except Exception:
             break
-        # print(attr)
         attribs.append(attr)
 
     # get attrib values
@@ -1496,14 +1485,12 @@ def get_elem_attribs(ifcentity):
         try:
             value = getattr(ifcentity, attr)
         except Exception as e:
-            # print(e)
             value = "Error: {}".format(e)
             print(
                 "DEBUG: The entity #{} has a problem on attribute {}: {}".format(
                     ifcentity.id(), attr, e
                 )
             )
-        # print(value)
         info_ifcentity[attr] = value
 
     return info_ifcentity
@@ -1586,8 +1573,6 @@ def get_group(project, name):
         doc = project
     group = add_object(doc, otype="group", oname=name)
     group.Label = name.strip("Ifc").strip("Group")
-    # if FreeCAD.GuiUp:
-    #    group.ViewObject.ShowInTree = PARAMS.GetBool("ShowDataGroups", False)
     if hasattr(project.Proxy, "addObject"):
         project.Proxy.addObject(project, group)
     return group
@@ -1647,8 +1632,6 @@ def remove_tree(objs):
 def recompute(children):
     """Temporary function to recompute objects. Some objects don't get their
     shape correctly at creation"""
-    #import time
-    #stime = time.time()
     doc = None
     for c in children:
         if c:
@@ -1656,5 +1639,3 @@ def recompute(children):
             doc = c.Document
     if doc:
         doc.recompute()
-    #endtime = "%02d:%02d" % (divmod(round(time.time() - stime, 1), 60))
-    #print("DEBUG: Extra recomputing of",len(children),"objects took",endtime)
