@@ -223,10 +223,10 @@ def find_tools(noobsolete=True):
     QT_VERSION = f"{QT_VERSION_MAJOR}.{QT_VERSION_MINOR}.{QT_VERSION_PATCH}"
     print(f"Found Qt {QT_VERSION}")
 
-    if QT_VERSION_MAJOR < 6:
+    if QT_VERSION_MAJOR == 5:
         if os.system("lupdate -version") == 0:
             LUPDATE = "lupdate"
-            # TODO: we suppose lupdate is a symlink to lupdate-qt4 for now
+            
             if noobsolete:
                 LUPDATE += " -no-obsolete"
         elif os.system("lupdate-qt5 -version") == 0:
@@ -238,7 +238,7 @@ def find_tools(noobsolete=True):
     else:
         LUPDATE = "lupdate"
 
-    if QT_VERSION_MAJOR < 6:
+    if QT_VERSION_MAJOR == 5:
         if os.system("qmake -version") == 0:
             QMAKE = "qmake"
         elif os.system("qmake-qt5 -version") == 0:
@@ -291,7 +291,7 @@ def update_translation(entry):
     project_filename = entry["tsname"] + ".pro"
     tsBasename = os.path.join(entry["tsdir"], entry["tsname"])
 
-    if QT_VERSION_MAJOR < 6:
+    if QT_VERSION_MAJOR == 5:
         print("\n\n=============================================")
         print(f"EXTRACTING STRINGS FOR {entry['tsname']}")
         print("=============================================", flush=True)
@@ -418,7 +418,7 @@ def update_translation(entry):
 
     else:
         print(
-            "ERROR: unrecognized version of lupdate -- found Qt {QT_VERSION_MAJOR}, we only support 4, 5 and 6"
+            "ERROR: unrecognized version of lupdate -- found Qt {QT_VERSION_MAJOR}, we only support 5 and 6"
         )
         exit(1)
 
