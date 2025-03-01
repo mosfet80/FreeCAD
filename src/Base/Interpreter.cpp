@@ -567,10 +567,6 @@ const char* InterpreterSingleton::init(int argc, char* argv[])
                 "    exec(open(activate_this).read(), {'__file__':activate_this})\n");
         }
 
-#if PY_VERSION_HEX < 0x03090000
-        PyEval_InitThreads();
-#endif
-
         size_t size = argc;
         static std::vector<wchar_t*> _argv(size);
         for (int i = 0; i < argc; i++) {
@@ -774,11 +770,7 @@ void InterpreterSingleton::runMethod(PyObject* pobject,
         throw TypeError("InterpreterSingleton::RunMethod() wrong arguments");
     }
 
-#if PY_VERSION_HEX < 0x03090000
-    presult = PyEval_CallObject(pmeth, pargs); /* run interpreter */
-#else
     presult = PyObject_CallObject(pmeth, pargs); /* run interpreter */
-#endif
 
     Py_DECREF(pmeth);
     Py_DECREF(pargs);
