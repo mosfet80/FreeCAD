@@ -207,7 +207,6 @@ SET(FreeCADBase_CPP_SRCS
     PyExport.cpp
     PyObjectBase.cpp
     PythonTypeExt.cpp
-    QtTools.cpp
     Reader.cpp
     Rotation.cpp
     RotationPyImp.cpp
@@ -274,7 +273,6 @@ SET(FreeCADBase_HPP_SRCS
     PyObjectBase.h
     PyWrapParseTupleAndKeywords.h
     PythonTypeExt.h
-    QtTools.h
     Reader.h
     Rotation.h
     ServiceProvider.h
