@@ -78,9 +78,6 @@
 // Include shiboken first to get the version
 #  include <shiboken.h>
 
-// Do not use SHIBOKEN_MICRO_VERSION; it might contain a dot
-#  define SHIBOKEN_FULL_VERSION QT_VERSION_CHECK(SHIBOKEN_MAJOR_VERSION, SHIBOKEN_MINOR_VERSION, 0)
-
 #  include <pyside2_qtcore_python.h>
 #  include <pyside2_qtgui_python.h>
 #  include <pyside2_qtwidgets_python.h>
@@ -98,7 +95,6 @@
 # define HAVE_SHIBOKEN
 # ifdef HAVE_PYSIDE6
 #  define HAVE_PYSIDE
-#  define HAVE_SHIBOKEN_TYPE_FOR_TYPENAME
 # endif // HAVE_PYSIDE6
 # include <sbkversion.h>
 # define SHIBOKEN_FULL_VERSION QT_VERSION_CHECK(SHIBOKEN_MAJOR_VERSION, SHIBOKEN_MINOR_VERSION, 0)
@@ -157,10 +153,9 @@ constexpr auto &SbkPySide_QtGuiTypes            = SbkPySide2_QtGuiTypes;
 constexpr auto &SbkPySide_QtWidgetsTypes        = SbkPySide2_QtWidgetsTypes;
 constexpr auto &SbkPySide_QtPrintSupportTypes   = SbkPySide2_QtPrintSupportTypes;
 constexpr auto &SbkPySide_QtUiToolsTypes        = SbkPySide2_QtUiToolsTypes;
-#if !defined(HAVE_PYSIDE2)
 constexpr const char* ModuleShiboken            = "shiboken2";
-#endif
 constexpr const char* ModulePySide              = "PySide2";
+
 #elif defined(HAVE_SHIBOKEN6)
 #ifdef HAVE_SHIBOKEN_TYPEINITSTRUCT
 Shiboken::Module::TypeInitStruct* SbkPySide6_QtCoreTypes           = nullptr;
@@ -180,10 +175,9 @@ constexpr auto &SbkPySide_QtGuiTypes            = SbkPySide6_QtGuiTypes;
 constexpr auto &SbkPySide_QtWidgetsTypes        = SbkPySide6_QtWidgetsTypes;
 constexpr auto &SbkPySide_QtPrintSupportTypes   = SbkPySide6_QtPrintSupportTypes;
 constexpr auto &SbkPySide_QtUiToolsTypes        = SbkPySide6_QtUiToolsTypes;
-#if !defined(HAVE_PYSIDE6)
 constexpr const char* ModuleShiboken            = "shiboken6";
-#endif
 constexpr const char* ModulePySide              = "PySide6";
+
 #else
 static PyTypeObject** SbkPySide_DummyTypes;
 constexpr auto &SbkPySide_QtCoreTypes           = SbkPySide_DummyTypes;
@@ -191,13 +185,8 @@ constexpr auto &SbkPySide_QtGuiTypes            = SbkPySide_DummyTypes;
 constexpr auto &SbkPySide_QtWidgetsTypes        = SbkPySide_DummyTypes;
 constexpr auto &SbkPySide_QtPrintSupportTypes   = SbkPySide_DummyTypes;
 constexpr auto &SbkPySide_QtUiToolsTypes        = SbkPySide_DummyTypes;
-# if QT_VERSION < QT_VERSION_CHECK(6,0,0)
-constexpr const char* ModuleShiboken            = "shiboken2";
-constexpr const char* ModulePySide              = "PySide2";
-# else
-constexpr const char* ModuleShiboken            = "shiboken6";
-constexpr const char* ModulePySide              = "PySide6";
-# endif
+constexpr const char* ModuleShiboken            = nullptr;
+constexpr const char* ModulePySide              = nullptr;
 #endif
 // NOLINTEND
 
@@ -252,7 +241,6 @@ PythonToCppFunc isBaseQuantity_PythonToCpp_QVariantConvertible(PyObject* obj)
     return nullptr;
 }
 
-#if defined (HAVE_PYSIDE)
 Base::Quantity convertWrapperToQuantity(const PySide::PyObjectWrapper &w)
 {
     auto pyIn = static_cast<PyObject*>(w);
@@ -262,7 +250,6 @@ Base::Quantity convertWrapperToQuantity(const PySide::PyObjectWrapper &w)
 
     return Base::Quantity(std::numeric_limits<double>::quiet_NaN());
 }
-#endif
 
 void registerTypes()
 {
@@ -282,9 +269,7 @@ void registerTypes()
                                                              isBaseQuantity_PythonToCpp_QVariantConvertible);
     }
 
-#if defined (HAVE_PYSIDE)
     QMetaType::registerConverter<PySide::PyObjectWrapper, Base::Quantity>(&convertWrapperToQuantity);
-#endif
 }
 #endif
 
@@ -331,7 +316,6 @@ PyTypeObject*
 #endif
 getPyTypeObjectForTypeName()
 {
-#if defined (HAVE_SHIBOKEN_TYPE_FOR_TYPENAME)
 # if defined (HAVE_SHIBOKEN2)
     auto sbkType = Shiboken::ObjectType::typeForTypeName(typeid(qttype).name());
     return reinterpret_cast<SbkObjectType*>(&sbkType->type);
@@ -344,7 +328,6 @@ getPyTypeObjectForTypeName()
 # else
     return Shiboken::SbkType<qttype>();
 # endif
-#endif
 }
 
 template<typename qttype>
