@@ -907,28 +907,7 @@ public:
         start_ticks = 0;
         total_ticks = 0;
     }
-    inline void Start()
-    {
-#ifdef DEV_MODE
-        start_ticks = clock();
-        if (running) {
-            cerr << "PerfCounter already running:" << name << endl;
-        }
-        running = true;
-#endif
-    }
-    inline void Stop()
-    {
-#ifdef DEV_MODE
-        if (!running) {
-            cerr << "PerfCounter not running:" << name << endl;
-        }
-        total_ticks += clock() - start_ticks;
-        start_ticks = clock();
-        count++;
-        running = false;
-#endif
-    }
+
     void DumpResults()
     {
         double total_time = double(total_ticks) / CLOCKS_PER_SEC;
@@ -1236,10 +1215,7 @@ public:
         // chain paths according to distance in between
         Paths toChain = toolBoundPaths;
         toolBoundPaths.clear();
-        // if(toChain.size()>0) {
-        // 	toolBoundPaths.push_back(toChain.front());
-        // 	toChain.erase(toChain.begin());
-        // }
+
         while (PopPathWithClosestPoint(toChain, current, result)) {
             toolBoundPaths.push_back(result);
             if (!result.empty()) {
@@ -1552,9 +1528,6 @@ double Adaptive2d::CalcCutArea(Clipper& clip,
             if (PointSideOfLine(c1, c2, midPoint) < 0) {
                 area = __DBL_MAX__;
                 Perf_CalcCutAreaCirc.Stop();
-                // #ifdef DEV_MODE
-                // 	cout << "Break: @(" << double(c2.X)/scaleFactor << "," <<
-                // double(c2.Y)/scaleFactor  << ") conventional mode" << endl; #endif
                 return area;
             }
         }
@@ -1730,7 +1703,6 @@ std::list<AdaptiveOutput> Adaptive2d::Execute(const DPaths& stockPaths,
     if (scaleFactor > maxScaleFactor) {
         scaleFactor = maxScaleFactor;
     }
-    // scaleFactor = round(scaleFactor);
 
     current_region = 0;
     cout << "Tool Diameter: " << toolDiameter << endl;
@@ -1779,11 +1751,7 @@ std::list<AdaptiveOutput> Adaptive2d::Execute(const DPaths& stockPaths,
     clip.Execute(ClipType::ctDifference, crossing);
     referenceCutArea = fabs(Area(crossing[0]));
     optimalCutAreaPD = 2 * stepOverFactor * referenceCutArea / toolRadiusScaled;
-#ifdef DEV_MODE
-    cout << "optimalCutAreaPD:" << optimalCutAreaPD << " scaleFactor:" << scaleFactor
-         << " toolRadiusScaled:" << toolRadiusScaled
-         << " helixRampRadiusScaled:" << helixRampRadiusScaled << endl;
-#endif
+
     //******************************
     // Convert input paths to clipper
     //******************************
@@ -1819,7 +1787,6 @@ std::list<AdaptiveOutput> Adaptive2d::Execute(const DPaths& stockPaths,
     }
 
     SimplifyPolygons(stockInputPaths);
-    // CleanPolygons(stockInputPaths,0.707);
 
     //***************************************
     //	Resolve hierarchy and run processing
@@ -2492,10 +2459,6 @@ void Adaptive2d::AppendToolPath(TPaths& progressPaths,
             Path linkPath;
             MotionType linkType = MotionType::mtCutting;
 
-            // this is not needed:
-            // clearedBefore.ExpandCleared(leadInPath);
-            // clearedBefore.ExpandCleared(leadOutPath);
-
             if (ResolveLinkPath(leadOutPath.back(), leadInPath.front(), clearedBefore, linkPath)) {
                 linkType = MotionType::mtLinkClear;
                 double remainingLeadInExtension = stepOverScaled / 2;
@@ -2777,9 +2740,6 @@ void Adaptive2d::ProcessPolyNode(Paths boundPaths, Paths toolBoundPaths)
         entryPoint = toolPos;
     }
 
-    // cout << "Entry point:" << double(entryPoint.X)/scaleFactor << "," <<
-    // double(entryPoint.Y)/scaleFactor << endl;
-
     AdaptiveOutput output;
     output.ReturnMotionType = 0;
     output.HelixCenterPoint.first = double(entryPoint.X) / scaleFactor;
@@ -2817,9 +2777,7 @@ void Adaptive2d::ProcessPolyNode(Paths boundPaths, Paths toolBoundPaths)
     bool prevDistTrend = false;
 
     double perf_total_len = 0;
-#ifdef DEV_MODE
-    clock_t start_clock = clock();
-#endif
+
     ClearedArea clearedBeforePass(toolRadiusScaled);
     clearedBeforePass.SetClearedPaths(cleared.GetCleared());
 
@@ -2948,9 +2906,7 @@ void Adaptive2d::ProcessPolyNode(Paths boundPaths, Paths toolBoundPaths)
                 areaPD = area / double(stepScaled);  // area per distance
                 interp.addPoint(areaPD, angle);
                 double error = areaPD - targetAreaPD;
-                // cout << " iter:" << iteration << " angle:" << angle << " area:" << areaPD
-                //      << " target:" << targetAreaPD << " error:" << error << " max:" << maxError
-                //      << endl;
+
                 if (fabs(error) < maxError) {
                     angleHistory.push_back(angle);
                     if (angleHistory.size() > ANGLE_HISTORY_POINTS) {
@@ -2996,9 +2952,6 @@ void Adaptive2d::ProcessPolyNode(Paths boundPaths, Paths toolBoundPaths)
                                       long(toolPos.Y + newToolDir.Y * stepScaled));
             }
             if (rotateStep >= 180) {
-#ifdef DEV_MODE
-                cerr << "Warning: unexpected number of rotate iterations." << endl;
-#endif
                 break;
             }
 
@@ -3065,14 +3018,7 @@ void Adaptive2d::ProcessPolyNode(Paths boundPaths, Paths toolBoundPaths)
                 CheckReportProgress(progressPaths);
             }
             else {
-#ifdef DEV_MODE
-                // if(point_index==0) {
-                // 	engage_no_cut_count++;
-                // 	cout<<"Break:no cut #" << engage_no_cut_count << ", bad engage, pass:" << pass
-                // << " over_cut_count:" << over_cut_count << endl;
-                // }
-#endif
-                // cout<<"Break: no cut @" << point_index << endl;
+
                 if (noCutDistance > stepOverScaled) {
                     break;
                 }
@@ -3256,37 +3202,14 @@ void Adaptive2d::ProcessPolyNode(Paths boundPaths, Paths toolBoundPaths)
         output.ReturnMotionType =
             IsClearPath(returnPath, cleared) ? MotionType::mtLinkClear : MotionType::mtLinkNotClear;
 
-        // dump performance results
-#ifdef DEV_MODE
-        Perf_ProcessPolyNode.Stop();
-        Perf_ProcessPolyNode.DumpResults();
-        Perf_PointIterations.DumpResults();
-        Perf_CalcCutAreaCirc.DumpResults();
-        Perf_CalcCutAreaClip.DumpResults();
-        Perf_NextEngagePoint.DumpResults();
-        Perf_ExpandCleared.DumpResults();
-        Perf_DistanceToBoundary.DumpResults();
-        Perf_AppendToolPath.DumpResults();
-        Perf_IsAllowedToCutTrough.DumpResults();
-        Perf_IsClearPath.DumpResults();
-#endif
         CheckReportProgress(progressPaths, true);
-#ifdef DEV_MODE
-        double duration = ((double)(clock() - start_clock)) / CLOCKS_PER_SEC;
-        cout << "PolyNode perf:" << perf_total_len / double(scaleFactor) / duration << " mm/sec"
-             << " processed_points:" << total_points << " output_points:" << total_output_points
-             << " total_iterations:" << total_iterations
-             << " iter_per_point:" << (double(total_iterations) / ((double(total_points) + 0.001)))
-             << " total_exceeded:" << total_exceeded << " ("
-             << 100 * double(total_exceeded) / double(total_points) << "%)" << endl;
-#else
+
         (void)total_output_points;
         (void)over_cut_count;
         (void)total_exceeded;
         (void)total_points;
         (void)total_iterations;
         (void)perf_total_len;
-#endif
 
         // warn about invalid paths being detected
         if (!allCutsAllowed) {

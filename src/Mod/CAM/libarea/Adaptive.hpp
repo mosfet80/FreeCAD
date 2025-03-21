@@ -40,8 +40,6 @@
 #define M_PI 3.141592653589793238
 #endif
 
-// #define DEV_MODE
-
 #define NTOL 1.0e-7  // numeric tolerance
 
 namespace AdaptivePath
@@ -101,13 +99,6 @@ public:
     std::list<AdaptiveOutput> Execute(const DPaths& stockPaths,
                                       const DPaths& paths,
                                       std::function<bool(TPaths)> progressCallbackFn);
-
-#ifdef DEV_MODE
-    /*for debugging*/
-    std::function<void(double cx, double cy, double radius, int color)> DrawCircleFn;
-    std::function<void(const DPath&, int color)> DrawPathFn;
-    std::function<void()> ClearScreenFn;
-#endif
 
 private:
     std::list<AdaptiveOutput> results;
