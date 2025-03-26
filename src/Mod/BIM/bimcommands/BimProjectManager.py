@@ -47,7 +47,6 @@ class BIM_ProjectManager:
 
     def Activated(self):
 
-        import FreeCADGui
         import ArchBuildingPart
         from PySide import QtCore, QtGui
 
@@ -143,7 +142,6 @@ class BIM_ProjectManager:
 
         import Arch
         import Draft
-        import FreeCADGui
         import Part
         from draftutils import params
 
@@ -670,7 +668,6 @@ class BIM_ProjectManager:
     def loadTemplate(self):
         """loads the contents of a template into the current file"""
 
-        import FreeCADGui
         from PySide import QtCore, QtGui
 
         filename = QtGui.QFileDialog.getOpenFileName(
