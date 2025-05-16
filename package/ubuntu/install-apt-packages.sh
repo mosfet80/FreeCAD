@@ -29,6 +29,7 @@ packages=(
   libeigen3-dev
   libkdtree++-dev
   libmedc-dev
+  linux-libc-dev
   libocct-data-exchange-dev
   libocct-ocaf-dev
   libocct-visualization-dev
