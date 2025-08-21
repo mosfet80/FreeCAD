@@ -85,13 +85,17 @@ TaskMeasure::TaskMeasure()
     showDelta = new QCheckBox();
     showDelta->setChecked(delta);
     showDeltaLabel = new QLabel(tr("Show Delta:"));
+#if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0)
+    connect(showDelta, &QCheckBox::checkStateChanged, this, &TaskMeasure::showDeltaChanged);
+#else
     connect(showDelta, &QCheckBox::stateChanged, this, &TaskMeasure::showDeltaChanged);
-
+#endif
     autoSaveAction = new QAction(tr("Auto Save"));
     autoSaveAction->setCheckable(true);
     autoSaveAction->setChecked(mAutoSave);
-    autoSaveAction->setToolTip(tr("Auto saving of the last measurement when starting a new "
-                                  "measurement. Use SHIFT to temporarily invert the behaviour."));
+    autoSaveAction->setToolTip(
+        tr("Auto saving of the last measurement when starting a new "
+           "measurement. Use the Shift key to temporarily invert the behaviour."));
     connect(autoSaveAction, &QAction::triggered, this, &TaskMeasure::autoSaveChanged);
 
     newMeasurementBehaviourAction = new QAction(tr("Additive Selection"));
@@ -99,7 +103,8 @@ TaskMeasure::TaskMeasure()
     newMeasurementBehaviourAction->setChecked(Gui::Selection().getSelectionStyle()
                                               == SelectionStyle::GreedySelection);
     newMeasurementBehaviourAction->setToolTip(
-        tr("If checked, new selection will be added to the measurement. If unchecked, CTRL must be "
+        tr("If checked, new selection will be added to the measurement. If unchecked, the Ctrl key "
+           "must be "
            "pressed to add a "
            "selection to the current measurement otherwise a new measurement will be started"));
     connect(newMeasurementBehaviourAction,
@@ -181,14 +186,14 @@ void TaskMeasure::modifyStandardButtons(QDialogButtonBox* box)
 
     QPushButton* btn = box->button(QDialogButtonBox::Apply);
     btn->setText(tr("Save"));
-    btn->setToolTip(tr("Save the measurement in the active document."));
+    btn->setToolTip(tr("Saves the measurement in the active document"));
     connect(btn, &QPushButton::released, this, qOverload<>(&TaskMeasure::apply));
 
     // Disable button by default
     btn->setEnabled(false);
     btn = box->button(QDialogButtonBox::Abort);
     btn->setText(tr("Close"));
-    btn->setToolTip(tr("Close the measurement task."));
+    btn->setToolTip(tr("Closes the measurement task"));
 
     // Connect reset button
     btn = box->button(QDialogButtonBox::Reset);
@@ -220,7 +225,9 @@ Measure::MeasureBase* TaskMeasure::createObject(const App::MeasureType* measureT
         auto pyMeasureClass = measureType->pythonClass;
 
         // Create a MeasurePython instance
-        _mMeasureObject = doc->addObject<Measure::MeasurePython>(measureType->label.c_str());
+        // Measure::MeasurePython is an alias so we need to use the string based addObject for now.
+        auto featurePython = doc->addObject("Measure::MeasurePython", measureType->label.c_str());
+        _mMeasureObject = dynamic_cast<Measure::MeasureBase*>(featurePython);
 
         // Create an instance of the pyMeasureClass, the classe's initializer sets the object as
         // proxy

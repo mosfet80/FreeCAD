@@ -1132,6 +1132,14 @@ std::string Application::getNameWithVersion()
     return fmt::format("{} {}.{}.{}{}", appname, major, minor, point, suffix);
 }
 
+bool Application::isDevelopmentVersion()
+{
+    static std::string suffix = []() constexpr {
+        return FCVersionSuffix;
+    }();
+    return suffix == "dev";
+}
+
 std::string Application::getTempPath()
 {
     return mConfig["AppTempPath"];
@@ -3774,7 +3782,12 @@ void Application::getVerboseCommonInfo(QTextStream& str, const std::map<std::str
 
     ParameterGrp::handle hGrp = App::GetApplication().GetParameterGroupByPath("User parameter:BaseApp/Preferences/View");
 
-    const QString navStyle = QString::fromStdString(hGrp->GetASCII("NavigationStyle", "Gui::CADNavigationStyle")).remove(0, 5).chopped(15);
+    QString navStyle = QString::fromStdString(hGrp->GetASCII("NavigationStyle", "Gui::CADNavigationStyle"));
+    // All navigation styles are named on the format "Gui::<Name>NavigationStyle"
+    // so we remove the "Gui::" prefix and the "NavigationStyle" suffix before printing.
+    navStyle.replace(QRegularExpression(QLatin1String("^Gui::")), {});
+    navStyle.replace(QRegularExpression(QLatin1String("NavigationStyle$")), {});
+
     const QString orbitStyle = QStringLiteral("Turntable,Trackball,Free Turntable,Trackball Classic,Rounded Arcball")
                                .split(QLatin1Char(','))
                                .at(hGrp->GetInt("OrbitStyle", 4));

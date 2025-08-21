@@ -30,8 +30,8 @@
 #include <Base/Tools.h>
 #include <Base/UnitsApi.h>
 #include <Gui/Command.h>
+#include <Gui/Tools.h>
 #include <Mod/PartDesign/App/FeatureExtrude.h>
-#include <Mod/Part/Gui/ReferenceHighlighter.h>
 
 #include "ui_TaskPadPocketParameters.h"
 #include "TaskExtrudeParameters.h"
@@ -174,11 +174,8 @@ void TaskExtrudeParameters::setupDialog()
     translateModeList(index);
 
     unselectShapeFaceAction = new QAction(tr("Remove"), this);
-    {
-        auto& rcCmdMgr = Gui::Application::Instance->commandManager();
-        auto shortcut = rcCmdMgr.getCommandByName("Std_Delete")->getShortcut();
-        unselectShapeFaceAction->setShortcut(QKeySequence(shortcut));
-    }
+    unselectShapeFaceAction->setShortcut(Gui::QtTools::deleteKeySequence());
+
     // display shortcut behind the context menu entry
     unselectShapeFaceAction->setShortcutVisibleInContextMenu(true);
 
@@ -266,7 +263,7 @@ void TaskExtrudeParameters::onSelectShapeFacesToggle(bool checked)
     }
     else {
         setSelectionMode(None);
-        ui->buttonShapeFace->setText(tr("Select faces"));
+        ui->buttonShapeFace->setText(tr("Select Faces"));
     }
 }
 
@@ -604,7 +601,7 @@ void TaskExtrudeParameters::fillDirectionCombo()
         }
 
         // add the other entries
-        addAxisToCombo(nullptr, std::string(), tr("Select reference..."));
+        addAxisToCombo(nullptr, std::string(), tr("Select reference…"));
 
         // we start with the sketch normal as proposal for the custom direction
         if (pcSketch) {

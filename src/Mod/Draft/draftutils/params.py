@@ -34,7 +34,6 @@ try:
 except ModuleNotFoundError:
     pass
 
-from draftutils import init_draft_statusbar
 from draftutils.translate import translate
 
 if App.GuiUp:
@@ -95,6 +94,8 @@ def _param_observer_callback_tray():
 
 def _param_observer_callback_scalemultiplier(value):
     # value is a string.
+    # import has to happen here to avoid circular imports
+    from draftutils import init_draft_statusbar
     if not value:
         return
     value = float(value)
@@ -454,6 +455,7 @@ def _get_param_dictionary():
         "HatchPatternResolution":      ("int",       128),  # used for SVG patterns
         "HatchPatternRotation":        ("float",     0.0),
         "HatchPatternScale":           ("float",     100.0),
+        "HatchPatternTranslate":       ("bool",      True),
         "labeltype":                   ("string",    "Custom"),
         "LayersManagerHeight":         ("int",       320),
         "LayersManagerWidth":          ("int",       640),
@@ -505,6 +507,18 @@ def _get_param_dictionary():
         "Wall":                        ("bool",      False),
     }
 
+    start_val = App.Units.Quantity(100.0, App.Units.Length).Value
+    param_dict["Mod/Draft/OrthoArrayLinearMode"] = {
+        "LinearModeOn": ("bool", True),
+        "AxisSelected": ("string", "X"),
+        "XInterval": ("float", start_val),
+        "YInterval": ("float", start_val),
+        "ZInterval": ("float", start_val),
+        "XNumOfElements": ("int", 2),
+        "YNumOfElements": ("int", 2),
+        "ZNumOfElements": ("int", 2)
+    }
+
     # Arch parameters that are not in the preferences:
     param_dict["Mod/Arch"] = {
         "applyConstructionStyle":      ("bool",      True),
@@ -545,6 +559,7 @@ def _get_param_dictionary():
         "PrecastHoleSpacing":          ("float",     0.0),
         "PrecastRiser":                ("float",     0.0),
         "PrecastTread":                ("float",     0.0),
+        "ProfilePreset":               ("string",    ""),
         "ScheduleColumnWidth0":        ("int",       100),
         "ScheduleColumnWidth1":        ("int",       100),
         "ScheduleColumnWidth2":        ("int",       50),
@@ -629,7 +644,8 @@ def _get_param_dictionary():
                 ":/ui/preferences-dae.ui",
                 ":/ui/preferences-ifc.ui",
                 ":/ui/preferences-ifc-export.ui",
-                ":/ui/preferences-sh3d-import.ui",):
+                ":/ui/preferences-sh3d-import.ui",
+                ":/ui/preferences-webgl.ui",):
 
         # https://stackoverflow.com/questions/14750997/load-txt-file-from-resources-in-python
         fd = QtCore.QFile(fnm)
@@ -683,6 +699,11 @@ def _get_param_dictionary():
                 elif att_class == "Gui::PrefFontBox":
                     path, entry, value = _param_from_PrefFontBox(widget)
                     typ = "string"
+                elif att_class == "Gui::PrefCheckableGroupBox":
+                    # It's a boolean preference, so we can reuse the parsing logic
+                    # from _param_from_PrefCheckBox, which looks for <property name="checked">.
+                    path, entry, value = _param_from_PrefCheckBox(widget)
+                    typ = "bool"
 
                 if path is not None:
                     if path in param_dict:

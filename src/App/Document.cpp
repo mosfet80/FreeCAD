@@ -25,7 +25,6 @@
 #ifndef _PreComp_
 #include <bitset>
 #include <stack>
-#include <boost/filesystem.hpp>
 #include <deque>
 #include <iostream>
 #include <utility>
@@ -70,6 +69,7 @@
 #include "private/DocumentP.h"
 #include "Application.h"
 #include "AutoTransaction.h"
+#include "BackupPolicy.h"
 #include "ExpressionParser.h"
 #include "GeoFeature.h"
 #include "License.h"
@@ -262,8 +262,9 @@ bool Document::redo(const int id)
     return false;
 }
 
-void Document::addOrRemovePropertyOfObject(TransactionalObject* obj,
-                                           const Property* prop, const bool add)
+void Document::changePropertyOfObject(TransactionalObject* obj,
+                                      const Property* prop,
+                                      const std::function<void()>& changeFunc)
 {
     if (!prop || !obj || !obj->isAttachedToDocument()) {
         return;
@@ -278,8 +279,24 @@ void Document::addOrRemovePropertyOfObject(TransactionalObject* obj,
         }
     }
     if (d->activeUndoTransaction && !d->rollback) {
-        d->activeUndoTransaction->addOrRemoveProperty(obj, prop, add);
+        changeFunc();
     }
+}
+
+void Document::renamePropertyOfObject(TransactionalObject* obj,
+                                      const Property* prop, const char* oldName)
+{
+    changePropertyOfObject(obj, prop, [this, obj, prop, oldName]() {
+        d->activeUndoTransaction->renameProperty(obj, prop, oldName);
+    });
+}
+
+void Document::addOrRemovePropertyOfObject(TransactionalObject* obj,
+                                           const Property* prop, const bool add)
+{
+    changePropertyOfObject(obj, prop, [this, obj, prop, add]() {
+        d->activeUndoTransaction->addOrRemoveProperty(obj, prop, add);
+    });
 }
 
 bool Document::isPerformingTransaction() const
@@ -824,7 +841,7 @@ Document::Document(const char* documentName)
         GetApplication()
             .GetParameterGroupByPath("User parameter:BaseApp/Preferences/Document")
             ->GetASCII("prefCompany", "");
-    ADD_PROPERTY_TYPE(Label, ("Unnamed"), 0, Prop_None, "The name of the document");
+    ADD_PROPERTY_TYPE(Label, ("Unnamed"), 0, Prop_ReadOnly, "The name of the document");
     ADD_PROPERTY_TYPE(FileName,
                       (""),
                       0,
@@ -1170,6 +1187,14 @@ Document::ExportStatus Document::isExporting(const DocumentObject* obj) const
         return exportStatus.status;
     }
     return Document::NotExporting;
+}
+ExportInfo Document::exportInfo() const
+{
+    return d->exportInfo;
+}
+void Document::setExportInfo(const ExportInfo& info)
+{
+    d->exportInfo = info;
 }
 
 void Document::exportObjects(const std::vector<DocumentObject*>& obj, std::ostream& out)
@@ -1723,320 +1748,6 @@ bool Document::save()
 
     return false;
 }
-
-namespace App
-{
-// Helper class to handle different backup policies
-class BackupPolicy
-{
-public:
-    enum Policy
-    {
-        Standard,
-        TimeStamp
-    };
-    BackupPolicy()
-    {}
-    ~BackupPolicy() = default;
-    void setPolicy(const Policy p)
-    {
-        policy = p;
-    }
-    void setNumberOfFiles(const int count)
-    {
-        numberOfFiles = count;
-    }
-    void useBackupExtension(const bool on)
-    {
-        useFCBakExtension = on;
-    }
-    void setDateFormat(const std::string& fmt)
-    {
-        saveBackupDateFormat = fmt;
-    }
-    void apply(const std::string& sourcename, const std::string& targetname)
-    {
-        switch (policy) {
-            case Standard:
-                applyStandard(sourcename, targetname);
-                break;
-            case TimeStamp:
-                applyTimeStamp(sourcename, targetname);
-                break;
-        }
-    }
-
-private:
-    void applyStandard(const std::string& sourcename, const std::string& targetname) const
-    {
-        // if saving the project data succeeded rename to the actual file name
-        if (Base::FileInfo fi(targetname); fi.exists()) {
-            if (numberOfFiles > 0) {
-                int nSuff = 0;
-                std::string fn = fi.fileName();
-                Base::FileInfo di(fi.dirPath());
-                std::vector<Base::FileInfo> backup;
-                std::vector<Base::FileInfo> files = di.getDirectoryContent();
-                for (const Base::FileInfo& it : files) {
-                    if (std::string file = it.fileName(); file.substr(0, fn.length()) == fn) {
-                        // starts with the same file name
-                        std::string suf(file.substr(fn.length()));
-                        if (!suf.empty()) {
-                            std::string::size_type nPos = suf.find_first_not_of("0123456789");
-                            if (nPos == std::string::npos) {
-                                // store all backup files
-                                backup.push_back(it);
-                                nSuff =
-                                    std::max<int>(nSuff, static_cast<int>(std::atol(suf.c_str())));
-                            }
-                        }
-                    }
-                }
-
-                if (!backup.empty() && static_cast<int>(backup.size()) >= numberOfFiles) {
-                    // delete the oldest backup file we found
-                    Base::FileInfo del = backup.front();
-                    for (const Base::FileInfo& it : backup) {
-                        if (it.lastModified() < del.lastModified()) {
-                            del = it;
-                        }
-                    }
-
-                    del.deleteFile();
-                    fn = del.filePath();
-                }
-                else {
-                    // create a new backup file
-                    std::stringstream str;
-                    str << fi.filePath() << (nSuff + 1);
-                    fn = str.str();
-                }
-
-                if (!fi.renameFile(fn.c_str())) {
-                    Base::Console().warning("Cannot rename project file to backup file\n");
-                }
-            }
-            else {
-                fi.deleteFile();
-            }
-        }
-
-        if (Base::FileInfo tmp(sourcename); !tmp.renameFile(targetname.c_str())) {
-            throw Base::FileException("Cannot rename tmp save file to project file",
-                                      Base::FileInfo(targetname));
-        }
-    }
-    void applyTimeStamp(const std::string& sourcename, const std::string& targetname)
-    {
-        Base::FileInfo fi(targetname);
-
-        std::string fn = sourcename;
-        std::string ext = fi.extension();
-        std::string bn;   // full path with no extension but with "."
-        std::string pbn;  // base name of the project + "."
-        if (!ext.empty()) {
-            bn = fi.filePath().substr(0, fi.filePath().length() - ext.length());
-            pbn = fi.fileName().substr(0, fi.fileName().length() - ext.length());
-        }
-        else {
-            bn = fi.filePath() + ".";
-            pbn = fi.fileName() + ".";
-        }
-
-        bool backupManagementError = false;  // Note error and report at the end
-        if (fi.exists()) {
-            if (numberOfFiles > 0) {
-                // replace . by - in format to avoid . between base name and extension
-                boost::replace_all(saveBackupDateFormat, ".", "-");
-                {
-                    // Remove all extra backups
-                    std::string filename = fi.fileName();
-                    Base::FileInfo di(fi.dirPath());
-                    std::vector<Base::FileInfo> backup;
-                    std::vector<Base::FileInfo> files = di.getDirectoryContent();
-                    for (const Base::FileInfo& it : files) {
-                        if (it.isFile()) {
-                            std::string file = it.fileName();
-                            std::string fext = it.extension();
-                            std::string fextUp = fext;
-                            std::transform(fextUp.begin(),
-                                           fextUp.end(),
-                                           fextUp.begin(),
-                                           static_cast<int (*)(int)>(toupper));
-                            // re-enforcing identification of the backup file
-
-
-                            // old case : the name starts with the full name of the project and
-                            // follows with numbers
-                            if ((startsWith(file, filename) && (file.length() > filename.length())
-                                 && checkDigits(file.substr(filename.length())))
-                                ||
-                                // .FCBak case : The bame starts with the base name of the project +
-                                // "."
-                                // + complement with no "." + ".FCBak"
-                                ((fextUp == "FCBAK") && startsWith(file, pbn)
-                                 && (checkValidComplement(file, pbn, fext)))) {
-                                backup.push_back(it);
-                            }
-                        }
-                    }
-
-                    if (!backup.empty() && static_cast<int>(backup.size()) >= numberOfFiles) {
-                        std::sort(backup.begin(), backup.end(), fileComparisonByDate);
-                        // delete the oldest backup file we found
-                        // Base::FileInfo del = backup.front();
-                        int nb = 0;
-                        for (Base::FileInfo& it : backup) {
-                            nb++;
-                            if (nb >= numberOfFiles) {
-                                try {
-                                    if (!it.deleteFile()) {
-                                        backupManagementError = true;
-                                        Base::Console().warning("Cannot remove backup file : %s\n",
-                                                                it.fileName().c_str());
-                                    }
-                                }
-                                catch (...) {
-                                    backupManagementError = true;
-                                    Base::Console().warning("Cannot remove backup file : %s\n",
-                                                            it.fileName().c_str());
-                                }
-                            }
-                        }
-                    }
-                }  // end remove backup
-
-                // create a new backup file
-                {
-                    int ext2 = 1;
-                    if (useFCBakExtension) {
-                        std::stringstream str;
-                        Base::TimeInfo ti = fi.lastModified();
-                        time_t s = ti.getTime_t();
-                        struct tm* timeinfo = localtime(&s);
-                        char buffer[100];
-
-                        strftime(buffer, sizeof(buffer), saveBackupDateFormat.c_str(), timeinfo);
-                        str << bn << buffer;
-
-                        fn = str.str();
-                        bool done = false;
-
-                        if ((fn.empty()) || (fn[fn.length() - 1] == ' ')
-                            || (fn[fn.length() - 1] == '-')) {
-                            if (fn[fn.length() - 1] == ' ') {
-                                fn = fn.substr(0, fn.length() - 1);
-                            }
-                        }
-                        else {
-                            if (!renameFileNoErase(fi, fn + ".FCBak")) {
-                                fn = fn + "-";
-                            }
-                            else {
-                                done = true;
-                            }
-                        }
-
-                        if (!done) {
-                            while (ext2 < numberOfFiles + 10) {
-                                if (renameFileNoErase(fi, fn + std::to_string(ext2) + ".FCBak")) {
-                                    break;
-                                }
-                                ext2++;
-                            }
-                        }
-                    }
-                    else {
-                        // changed but simpler and solves also the delay sometimes introduced by
-                        // google drive
-                        while (ext2 < numberOfFiles + 10) {
-                            // linux just replace the file if exists, and then the existence is to
-                            // be tested before rename
-                            if (renameFileNoErase(fi, fi.filePath() + std::to_string(ext2))) {
-                                break;
-                            }
-                            ext2++;
-                        }
-                    }
-
-                    if (ext2 >= numberOfFiles + 10) {
-                        Base::Console().error(
-                            "File not saved: Cannot rename project file to backup file\n");
-                        // throw Base::FileException("File not saved: Cannot rename project file to
-                        // backup file", fi);
-                    }
-                }
-            }
-            else {
-                try {
-                    fi.deleteFile();
-                }
-                catch (...) {
-                    Base::Console().warning("Cannot remove backup file: %s\n",
-                                            fi.fileName().c_str());
-                    backupManagementError = true;
-                }
-            }
-        }
-
-        Base::FileInfo tmp(sourcename);
-        if (!tmp.renameFile(targetname.c_str())) {
-            throw Base::FileException(
-                "Save interrupted: Cannot rename temporary file to project file",
-                tmp);
-        }
-
-        if (backupManagementError) {
-            throw Base::FileException(
-                "Warning: Save complete, but error while managing backup history.",
-                fi);
-        }
-    }
-    static bool fileComparisonByDate(const Base::FileInfo& i, const Base::FileInfo& j)
-    {
-        return (i.lastModified() > j.lastModified());
-    }
-    bool startsWith(const std::string& st1, const std::string& st2) const
-    {
-        return st1.substr(0, st2.length()) == st2;
-    }
-    bool checkValidString(const std::string& cmpl, const boost::regex& e) const
-    {
-        boost::smatch what;
-        const bool res = boost::regex_search(cmpl, what, e);
-        return res;
-    }
-    bool checkValidComplement(const std::string& file,
-                              const std::string& pbn,
-                              const std::string& ext) const
-    {
-        const std::string cmpl =
-            file.substr(pbn.length(), file.length() - pbn.length() - ext.length() - 1);
-        const boost::regex e(R"(^[^.]*$)");
-        return checkValidString(cmpl, e);
-    }
-    bool checkDigits(const std::string& cmpl) const
-    {
-        const boost::regex e(R"(^[0-9]*$)");
-        return checkValidString(cmpl, e);
-    }
-    bool renameFileNoErase(Base::FileInfo fi, const std::string& newName)
-    {
-        // linux just replaces the file if it exists, so the existence is to be tested before rename
-        const Base::FileInfo nf(newName);
-        if (!nf.exists()) {
-            return fi.renameFile(newName.c_str());
-        }
-        return false;
-    }
-
-private:
-    Policy policy {Standard};
-    int numberOfFiles {1};
-    bool useFCBakExtension {true};
-    std::string saveBackupDateFormat {"%Y%m%d-%H%M%S"};
-};
-}  // namespace App
 
 bool Document::saveToFile(const char* filename) const
 {
@@ -3366,67 +3077,13 @@ DocumentObject* Document::addObject(const char* sType,
     auto* pcObject = static_cast<DocumentObject*>(typeInstance);
     pcObject->setDocument(this);
 
-    // do no transactions if we do a rollback!
-    if (!d->rollback) {
-        // Undo stuff
-        _checkTransaction(nullptr, nullptr, __LINE__);
-        if (d->activeUndoTransaction) {
-            d->activeUndoTransaction->addObjectDel(pcObject);
-        }
-    }
-
-    // get Unique name
-    const bool hasName = !Base::Tools::isNullOrEmpty(pObjectName);
-    const string ObjectName = getUniqueObjectName(hasName ? pObjectName : type.getName());
-
-    d->activeObject = pcObject;
-
-    // insert in the name map
-    d->objectMap[ObjectName] = pcObject;
-    d->objectNameManager.addExactName(ObjectName);
-    // generate object id and add to id map;
-    pcObject->_Id = ++d->lastObjectId;
-    d->objectIdMap[pcObject->_Id] = pcObject;
-    // cache the pointer to the name string in the Object (for performance of
-    // DocumentObject::getNameInDocument())
-    pcObject->pcNameInDocument = &(d->objectMap.find(ObjectName)->first);
-    // insert in the vector
-    d->objectArray.push_back(pcObject);
-    // Register the current Label even though it is (probably) about to change
-    registerLabel(pcObject->Label.getStrValue());
-
-    // If we are restoring, don't set the Label object now; it will be restored later. This is to
-    // avoid potential duplicate label conflicts later.
-    if (!d->StatusBits.test(Restoring)) {
-        pcObject->Label.setValue(ObjectName);
-    }
-
-    // Call the object-specific initialization
-    if (!d->undoing && !d->rollback && isNew) {
-        pcObject->setupObject();
-    }
-
-    // mark the object as new (i.e. set status bit 2) and send the signal
-    pcObject->setStatus(ObjectStatus::New, true);
-
-    pcObject->setStatus(ObjectStatus::PartialObject, isPartial);
-
-    if (Base::Tools::isNullOrEmpty(viewType)) {
-        viewType = pcObject->getViewProviderNameOverride();
-    }
-
-    if (!Base::Tools::isNullOrEmpty(viewType)) {
-        pcObject->_pcViewProviderName = viewType;
-    }
-
-    signalNewObject(*pcObject);
-
-    // do no transactions if we do a rollback!
-    if (!d->rollback && d->activeUndoTransaction) {
-        signalTransactionAppend(*pcObject, d->activeUndoTransaction);
-    }
-
-    signalActivatedObject(*pcObject);
+    _addObject(pcObject,
+               pObjectName,
+               AddObjectOption::SetNewStatus
+                   | (isPartial ? AddObjectOption::SetPartialStatus : AddObjectOption::UnsetPartialStatus)
+                   | (isNew ? AddObjectOption::DoSetup : AddObjectOption::None)
+                   | AddObjectOption::ActivateObject, 
+               viewType);
 
     // return the Object
     return pcObject;
@@ -3455,67 +3112,17 @@ Document::addObjects(const char* sType, const std::vector<std::string>& objectNa
     }
 
     for (auto it = objects.begin(); it != objects.end(); ++it) {
-        auto index = std::distance(objects.begin(), it);
+        size_t index = std::distance(objects.begin(), it);
         DocumentObject* pcObject = *it;
         pcObject->setDocument(this);
 
-        // do no transactions if we do a rollback!
-        if (!d->rollback) {
-            // Undo stuff
-            _checkTransaction(nullptr, nullptr, __LINE__);
-            if (d->activeUndoTransaction) {
-                d->activeUndoTransaction->addObjectDel(pcObject);
-            }
-        }
-
-        // get unique name. We don't use getUniqueObjectName because it takes a char* not a std::string
-        std::string ObjectName = objectNames[index];
-        if (ObjectName.empty()) {
-            ObjectName = sType;
-        }
-        ObjectName = Base::Tools::getIdentifier(ObjectName);
-        if (d->objectNameManager.containsName(ObjectName)) {
-            ObjectName = d->objectNameManager.makeUniqueName(ObjectName, 3);
-        }
-
-        // insert in the name map
-        d->objectMap[ObjectName] = pcObject;
-        d->objectNameManager.addExactName(ObjectName);
-        // generate object id and add to id map;
-        pcObject->_Id = ++d->lastObjectId;
-        d->objectIdMap[pcObject->_Id] = pcObject;
-        // cache the pointer to the name string in the Object (for performance of
-        // DocumentObject::getNameInDocument())
-        pcObject->pcNameInDocument = &(d->objectMap.find(ObjectName)->first);
-        // insert in the vector
-        d->objectArray.push_back(pcObject);
-        // Register the current Label even though it is about to change
-        registerLabel(pcObject->Label.getStrValue());
-
-        pcObject->Label.setValue(ObjectName);
-
-        // Call the object-specific initialization
-        if (!d->undoing && !d->rollback && isNew) {
-            pcObject->setupObject();
-        }
-
-        // mark the object as new (i.e. set status bit 2) and send the signal
-        pcObject->setStatus(ObjectStatus::New, true);
-
-        const char* viewType = pcObject->getViewProviderNameOverride();
-        pcObject->_pcViewProviderName = viewType ? viewType : "";
-
-        signalNewObject(*pcObject);
-
-        // do no transactions if we do a rollback!
-        if (!d->rollback && d->activeUndoTransaction) {
-            signalTransactionAppend(*pcObject, d->activeUndoTransaction);
-        }
-    }
-
-    if (!objects.empty()) {
-        d->activeObject = objects.back();
-        signalActivatedObject(*objects.back());
+        // Add the object but only activate the last one
+        bool isLast = index == (objects.size() - 1);
+        _addObject(pcObject,
+                   objectNames[index].c_str(),
+                   AddObjectOption::SetNewStatus
+                       | (isNew ? AddObjectOption::DoSetup : AddObjectOption::None)
+                       | (isLast ? AddObjectOption::ActivateObject : AddObjectOption::None));
     }
 
     return objects;
@@ -3529,15 +3136,11 @@ void Document::addObject(DocumentObject* pcObject, const char* pObjectName)
 
     pcObject->setDocument(this);
 
-    // do no transactions if we do a rollback!
-    if (!d->rollback) {
-        // Undo stuff
-        _checkTransaction(nullptr, nullptr, __LINE__);
-        if (d->activeUndoTransaction) {
-            d->activeUndoTransaction->addObjectDel(pcObject);
-        }
-    }
+    _addObject(pcObject, pObjectName, AddObjectOption::SetNewStatus | AddObjectOption::ActivateObject);
+}
 
+void Document::_addObject(DocumentObject* pcObject, const char* pObjectName, AddObjectOptions options, const char* viewType)
+{
     // get unique name
     string ObjectName;
     if (!Base::Tools::isNullOrEmpty(pObjectName)) {
@@ -3546,81 +3149,65 @@ void Document::addObject(DocumentObject* pcObject, const char* pObjectName)
     else {
         ObjectName = getUniqueObjectName(pcObject->getTypeId().getName());
     }
-
-    d->activeObject = pcObject;
-
+ 
     // insert in the name map
     d->objectMap[ObjectName] = pcObject;
     d->objectNameManager.addExactName(ObjectName);
-    // generate object id and add to id map;
-    if (pcObject->_Id == 0) {
-        pcObject->_Id = ++d->lastObjectId;
-    }
-    d->objectIdMap[pcObject->_Id] = pcObject;
     // cache the pointer to the name string in the Object (for performance of
     // DocumentObject::getNameInDocument())
     pcObject->pcNameInDocument = &(d->objectMap.find(ObjectName)->first);
-    // insert in the vector
-    d->objectArray.push_back(pcObject);
-    // Register the current Label even though it is about to change
+    // Register the current Label even though it might be about to change
     registerLabel(pcObject->Label.getStrValue());
 
-    pcObject->Label.setValue(ObjectName);
-
-    // mark the object as new (i.e. set status bit 2) and send the signal
-    pcObject->setStatus(ObjectStatus::New, true);
-
-    const char* viewType = pcObject->getViewProviderNameOverride();
-    pcObject->_pcViewProviderName = viewType ? viewType : "";
-
-    signalNewObject(*pcObject);
-
-    // do no transactions if we do a rollback!
-    if (!d->rollback && d->activeUndoTransaction) {
-        signalTransactionAppend(*pcObject, d->activeUndoTransaction);
-    }
-
-    signalActivatedObject(*pcObject);
-}
-
-void Document::_addObject(DocumentObject* pcObject, const char* pObjectName)
-{
-    const std::string ObjectName = getUniqueObjectName(pObjectName);
-    d->objectMap[ObjectName] = pcObject;
-    d->objectNameManager.addExactName(ObjectName);
-    // generate object id and add to id map;
+    // generate object id and add to id map + object array
     if (pcObject->_Id == 0) {
         pcObject->_Id = ++d->lastObjectId;
     }
     d->objectIdMap[pcObject->_Id] = pcObject;
     d->objectArray.push_back(pcObject);
-    registerLabel(pcObject->Label.getStrValue());
-    // cache the pointer to the name string in the Object (for performance of
-    // DocumentObject::getNameInDocument())
-    pcObject->pcNameInDocument = &(d->objectMap.find(ObjectName)->first);
-
-    // do no transactions if we do a rollback!
+     
+     // do no transactions if we do a rollback!
     if (!d->rollback) {
         // Undo stuff
         _checkTransaction(nullptr, nullptr, __LINE__);
         if (d->activeUndoTransaction) {
             d->activeUndoTransaction->addObjectDel(pcObject);
         }
+     }
+    // If we are restoring, don't set the Label object now; it will be restored later. This is to
+    // avoid potential duplicate label conflicts later.
+    if (options.testFlag(AddObjectOption::SetNewStatus) && !d->StatusBits.test(Restoring)) {
+        pcObject->Label.setValue(ObjectName);
     }
 
-    const char* viewType = pcObject->getViewProviderNameOverride();
+    // Call the object-specific initialization
+    if (!isPerformingTransaction() && options.testFlag(AddObjectOption::DoSetup)) {
+        pcObject->setupObject();
+    }
+ 
+    if (options.testFlag(AddObjectOption::SetNewStatus)) {
+        pcObject->setStatus(ObjectStatus::New, true);    
+    }
+    if (options.testFlag(AddObjectOption::SetPartialStatus) || options.testFlag(AddObjectOption::UnsetPartialStatus)) {
+        pcObject->setStatus(ObjectStatus::PartialObject, options.testFlag(AddObjectOption::SetPartialStatus));
+    }
+
+    if (Base::Tools::isNullOrEmpty(viewType)) {
+        viewType = pcObject->getViewProviderNameOverride();
+    }
     pcObject->_pcViewProviderName = viewType ? viewType : "";
 
-    // send the signal
     signalNewObject(*pcObject);
-
+ 
     // do no transactions if we do a rollback!
     if (!d->rollback && d->activeUndoTransaction) {
         signalTransactionAppend(*pcObject, d->activeUndoTransaction);
     }
-
-    d->activeObject = pcObject;
-    signalActivatedObject(*pcObject);
+ 
+    if (options.testFlag(AddObjectOption::ActivateObject)) {
+        d->activeObject = pcObject;
+        signalActivatedObject(*pcObject);    
+    }
 }
 
 bool Document::containsObject(const DocumentObject* pcObject) const
@@ -3637,11 +3224,6 @@ void Document::removeObject(const char* sName)
 {
     auto pos = d->objectMap.find(sName);
 
-    // name not found?
-    if (pos == d->objectMap.end()) {
-        return;
-    }
-
     if (pos->second->testStatus(ObjectStatus::PendingRecompute)) {
         // TODO: shall we allow removal if there is active undo transaction?
         FC_MSG("pending remove of " << sName << " after recomputing document " << getName());
@@ -3649,91 +3231,17 @@ void Document::removeObject(const char* sName)
         return;
     }
 
-    TransactionLocker tlock;
-
-    _checkTransaction(pos->second, nullptr, __LINE__);
-
-    if (d->activeObject == pos->second) {
-        d->activeObject = nullptr;
-    }
-
-    // Mark the object as about to be deleted
-    pos->second->setStatus(ObjectStatus::Remove, true);
-    if (!d->undoing && !d->rollback) {
-        pos->second->unsetupObject();
-    }
-
-    signalDeletedObject(*(pos->second));
-
-    // do no transactions if we do a rollback!
-    if (!d->rollback && d->activeUndoTransaction) {
-        // in this case transaction delete or save the object
-        signalTransactionRemove(*pos->second, d->activeUndoTransaction);
-    }
-    else {
-        // if not saved in undo -> delete object
-        signalTransactionRemove(*pos->second, nullptr);
-    }
-
-    // Before deleting we must nullify all dependent objects
-    breakDependency(pos->second, true);
-
-    // and remove the tip if needed
-    if (Tip.getValue() && strcmp(Tip.getValue()->getNameInDocument(), sName) == 0) {
-        Tip.setValue(nullptr);
-        TipName.setValue("");
-    }
-
-    // remove the ID before possibly deleting the object
-    d->objectIdMap.erase(pos->second->_Id);
-    // Unset the bit to be on the safe side
-    pos->second->setStatus(ObjectStatus::Remove, false);
-    unregisterLabel(pos->second->Label.getStrValue());
-
-    // do no transactions if we do a rollback!
-    std::unique_ptr<DocumentObject> tobedestroyed;
-    if (!d->rollback) {
-        // Undo stuff
-        if (d->activeUndoTransaction) {
-            // in this case transaction delete or save the object
-            d->activeUndoTransaction->addObjectNew(pos->second);
-        }
-        else {
-            // if not saved in undo -> delete object later
-            std::unique_ptr<DocumentObject> delobj(pos->second);
-            tobedestroyed.swap(delobj);
-            tobedestroyed->setStatus(ObjectStatus::Destroy, true);
-        }
-    }
-
-    for (auto obj = d->objectArray.begin();
-         obj != d->objectArray.end();
-         ++obj) {
-        if (*obj == pos->second) {
-            d->objectArray.erase(obj);
-            break;
-        }
-    }
-
-    // In case the object gets deleted the pointer must be nullified
-    if (tobedestroyed) {
-        tobedestroyed->pcNameInDocument = nullptr;
-    }
-    d->objectNameManager.removeExactName(pos->first);
-    d->objectMap.erase(pos);
+    _removeObject(pos->second, RemoveObjectOption::MayRemoveWhileRecomputing | RemoveObjectOption::MayDestroyOutOfTransaction);
 }
-
-/// Remove an object out of the document (internal)
-void Document::_removeObject(DocumentObject* pcObject)
+void Document::_removeObject(DocumentObject* pcObject, RemoveObjectOptions options)
 {
-    if (testStatus(Document::Recomputing)) {
+    if (!options.testFlag(RemoveObjectOption::MayRemoveWhileRecomputing) && testStatus(Document::Recomputing)) {
         FC_ERR("Cannot delete " << pcObject->getFullName() << " while recomputing");
         return;
     }
-
+    
     TransactionLocker tlock;
 
-    // TODO Refactoring: share code with Document::removeObject() (2015-09-01, Fat-Zer)
     _checkTransaction(pcObject, nullptr, __LINE__);
 
     auto pos = d->objectMap.find(pcObject->getNameInDocument());
@@ -3741,17 +3249,23 @@ void Document::_removeObject(DocumentObject* pcObject)
         FC_ERR("Internal error, could not find " << pcObject->getFullName() << " to remove");
     }
 
-    if (!d->rollback && d->activeUndoTransaction && pos->second->hasChildElement()) {
-        // Preserve link group children global visibility. See comments in
-        // removeObject() for more details.
-        for (auto& sub : pos->second->getSubObjects()) {
+    if (options.testFlag(RemoveObjectOption::PreserveChildrenVisibility) 
+        && !d->rollback && d->activeUndoTransaction && pcObject->hasChildElement()) {
+        // Preserve link group sub object global visibilities. Normally those
+        // claimed object should be hidden in global coordinate space. However,
+        // when the group is deleted, the user will naturally try to show the
+        // children, which may now in the global space. When the parent is
+        // undeleted, having its children shown in both the local and global
+        // coordinate space is very confusing. Hence, we preserve the visibility
+        // here        
+        for (auto& sub : pcObject->getSubObjects()) {
             if (sub.empty()) {
                 continue;
             }
             if (sub[sub.size() - 1] != '.') {
                 sub += '.';
             }
-            const auto sobj = pos->second->getSubObject(sub.c_str());
+            auto sobj = pcObject->getSubObject(sub.c_str());
             if (sobj && sobj->getDocument() == this && !sobj->Visibility.getValue()) {
                 d->activeUndoTransaction->addObjectChange(sobj, &sobj->Visibility);
             }
@@ -3768,38 +3282,35 @@ void Document::_removeObject(DocumentObject* pcObject)
         pcObject->unsetupObject();
     }
     signalDeletedObject(*pcObject);
-    // TODO Check me if it's needed (2015-09-01, Fat-Zer)
+    signalTransactionRemove(*pcObject, d->rollback ? nullptr : d->activeUndoTransaction);
+    breakDependency(pcObject, true);
 
+    // TODO Check me if it's needed (2015-09-01, Fat-Zer)
     // remove the tip if needed
     if (Tip.getValue() == pcObject) {
         Tip.setValue(nullptr);
         TipName.setValue("");
     }
 
-    // do no transactions if we do a rollback!
-    if (!d->rollback && d->activeUndoTransaction) {
-        // Undo stuff
-        signalTransactionRemove(*pcObject, d->activeUndoTransaction);
-        breakDependency(pcObject, true);
-        d->activeUndoTransaction->addObjectNew(pcObject);
-    }
-    else {
-        // for a rollback delete the object
-        signalTransactionRemove(*pcObject, nullptr);
-        breakDependency(pcObject, true);
-    }
-    // TODO: Transaction::addObjectName could potentially have freed (deleted) pcObject so some of the following
-    // code may be dereferencing a pointer to a deleted object which is not legal. if (d->rollback) this does not occur
-    // and instead pcObject is deleted at the end of this function.
-    // This either should be fixed, perhaps by moving the following lines up in the code,
-    // or there should be a comment explaining why the object will never be deleted because of the logic that got us here.
-
     // remove from map
     pcObject->setStatus(ObjectStatus::Remove, false);  // Unset the bit to be on the safe side
     d->objectIdMap.erase(pcObject->_Id);
     d->objectNameManager.removeExactName(pos->first);
-    unregisterLabel(pos->second->Label.getStrValue());
-    d->objectMap.erase(pos);
+    unregisterLabel(pcObject->Label.getStrValue());
+
+    // do no transactions if we do a rollback!
+    if (!d->rollback && d->activeUndoTransaction) {
+        d->activeUndoTransaction->addObjectNew(pcObject);
+    }
+
+    std::unique_ptr<DocumentObject> tobedestroyed;
+    if ((options.testFlag(RemoveObjectOption::MayDestroyOutOfTransaction) && !d->rollback && !d->activeUndoTransaction) 
+        || (options.testFlag(RemoveObjectOption::DestroyOnRollback) && d->rollback)) {
+        // if not saved in undo -> delete object later
+        std::unique_ptr<DocumentObject> delobj(pos->second);
+        tobedestroyed.swap(delobj);
+        tobedestroyed->setStatus(ObjectStatus::Destroy, true);
+    }
 
     for (auto it = d->objectArray.begin();
          it != d->objectArray.end();
@@ -3809,12 +3320,15 @@ void Document::_removeObject(DocumentObject* pcObject)
             break;
         }
     }
-
-    // for a rollback delete the object
-    if (d->rollback) {
-        pcObject->setStatus(ObjectStatus::Destroy, true);
-        delete pcObject;
+    
+    // In case the object gets deleted the pointer must be nullified
+    if (tobedestroyed) {
+        tobedestroyed->pcNameInDocument = nullptr;
     }
+
+    // Erase last to avoid invalidating pcObject->pcNameInDocument 
+    // when it is still needed in Transaction::addObjectNew
+    d->objectMap.erase(pos);
 }
 
 void Document::breakDependency(DocumentObject* pcObject, const bool clear) // NOLINT

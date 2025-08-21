@@ -504,6 +504,7 @@ class _Site(ArchIFC.IfcProduct):
 
     def __init__(self,obj):
         obj.Proxy = self
+        self.Type = "Site"
         self.setProperties(obj)
         obj.IfcType = "Site"
         obj.CompositionType = "ELEMENT"
@@ -576,7 +577,6 @@ class _Site(ArchIFC.IfcProduct):
             obj.addProperty("App::PropertyInteger","TimeZone","Site",QT_TRANSLATE_NOOP("App::Property","The time zone where this site is located"), locked=True)
         if not "EPWFile" in pl:
             obj.addProperty("App::PropertyFileIncluded","EPWFile","Site",QT_TRANSLATE_NOOP("App::Property","An optional EPW File for the location of this site. Refer to the Site documentation to know how to obtain one"), locked=True)
-        self.Type = "Site"
 
     def onDocumentRestored(self,obj):
         """Method run when the document is restored. Re-adds the properties."""
@@ -659,8 +659,15 @@ class _Site(ArchIFC.IfcProduct):
 
     def onChanged(self, obj, prop):
         ArchComponent.Component.onChanged(self, obj, prop)
-        if prop == "Terrain" and obj.Terrain and FreeCAD.GuiUp:
-            obj.Terrain.ViewObject.hide()
+        if prop == "Terrain" and obj.Terrain:
+            if obj.Terrain in getattr(obj,"Group",[]):
+                grp = obj.Group
+                grp.remove(obj.Terrain)
+                obj.Group = grp
+            if FreeCAD.GuiUp:
+                obj.Terrain.ViewObject.hide()
+        if prop == "Group" and getattr(obj,"Terrain",None) in obj.Group:
+            obj.Terrain = None
 
     def getMovableChildren(self, obj):
         return obj.Additions + obj.Subtractions
@@ -751,7 +758,7 @@ class _Site(ArchIFC.IfcProduct):
 
     def loads(self,state):
 
-        return None
+        self.Type = "Site"
 
 
 class _ViewProviderSite:
@@ -784,7 +791,7 @@ class _ViewProviderSite:
             vobj.addProperty("App::PropertyBool","SolarDiagram","Site",QT_TRANSLATE_NOOP("App::Property","Show solar diagram or not"), locked=True)
         if not "SolarDiagramScale" in pl:
             vobj.addProperty("App::PropertyFloat","SolarDiagramScale","Site",QT_TRANSLATE_NOOP("App::Property","The scale of the solar diagram"), locked=True)
-            vobj.SolarDiagramScale = 1
+            vobj.SolarDiagramScale = 20000.0 # Default diagram of 20 m radius
         if not "SolarDiagramPosition" in pl:
             vobj.addProperty("App::PropertyVector","SolarDiagramPosition","Site",QT_TRANSLATE_NOOP("App::Property","The position of the solar diagram"), locked=True)
         if not "SolarDiagramColor" in pl:
@@ -971,19 +978,12 @@ class _ViewProviderSite:
         """
 
         from pivy import coin
-
-        def find_node(parent, nodetype):
-            for i in range(parent.getNumChildren()):
-                if isinstance(parent.getChild(i), nodetype):
-                    return parent.getChild(i)
-            return None
+        from draftutils import gui_utils
 
         if not hasattr(self, "terrain_switches"):
-            if vobj.RootNode.getNumChildren() > 2:
-                main_switch = find_node(vobj.RootNode, coin.SoSwitch)
-                if not main_switch:
-                    return
-                if main_switch.getNumChildren() == 4:   # Check if all display modes are available.
+            if vobj.RootNode.getNumChildren():
+                main_switch = gui_utils.find_coin_node(vobj.RootNode, coin.SoSwitch)  # The display mode switch.
+                if main_switch is not None and main_switch.getNumChildren() == 4:  # Check if all display modes are available.
                     self.terrain_switches = []
                     for node in tuple(main_switch.getChildren()):
                         new_switch = coin.SoSwitch()

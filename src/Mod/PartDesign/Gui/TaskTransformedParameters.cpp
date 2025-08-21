@@ -37,6 +37,7 @@
 #include <Gui/ViewProvider.h>
 #include <Gui/Selection/Selection.h>
 #include <Gui/Command.h>
+#include <Gui/Tools.h>
 #include <Mod/PartDesign/App/Body.h>
 #include <Mod/PartDesign/App/FeatureAddSub.h>
 #include <Mod/PartDesign/App/FeatureTransformed.h>
@@ -102,11 +103,8 @@ void TaskTransformedParameters::setupUI()
 
     // Create context menu
     auto action = new QAction(tr("Remove"), this);
-    {
-        auto& rcCmdMgr = Gui::Application::Instance->commandManager();
-        auto shortcut = rcCmdMgr.getCommandByName("Std_Delete")->getShortcut();
-        action->setShortcut(QKeySequence(shortcut));
-    }
+    action->setShortcut(Gui::QtTools::deleteKeySequence());
+
     // display shortcut behind the context menu entry
     action->setShortcutVisibleInContextMenu(true);
     ui->listWidgetFeatures->addAction(action);
@@ -419,9 +417,9 @@ void TaskTransformedParameters::fillAxisCombo(ComboLinks& combolinks, Part::Part
     if (body) {
         try {
             App::Origin* orig = body->getOrigin();
-            combolinks.addLink(orig->getX(), "", tr("Base X axis"));
-            combolinks.addLink(orig->getY(), "", tr("Base Y axis"));
-            combolinks.addLink(orig->getZ(), "", tr("Base Z axis"));
+            combolinks.addLink(orig->getX(), "", tr("Base x-axis"));
+            combolinks.addLink(orig->getY(), "", tr("Base y-axis"));
+            combolinks.addLink(orig->getZ(), "", tr("Base z-axis"));
         }
         catch (const Base::Exception& ex) {
             Base::Console().error("%s\n", ex.what());
@@ -429,7 +427,7 @@ void TaskTransformedParameters::fillAxisCombo(ComboLinks& combolinks, Part::Part
     }
 
     // add "Select reference"
-    combolinks.addLink(nullptr, std::string(), tr("Select reference..."));
+    combolinks.addLink(nullptr, std::string(), tr("Select reference…"));
 }
 
 void TaskTransformedParameters::fillPlanesCombo(ComboLinks& combolinks, Part::Part2DObject* sketch)
@@ -465,7 +463,7 @@ void TaskTransformedParameters::fillPlanesCombo(ComboLinks& combolinks, Part::Pa
     }
 
     // add "Select reference"
-    combolinks.addLink(nullptr, std::string(), tr("Select reference..."));
+    combolinks.addLink(nullptr, std::string(), tr("Select reference…"));
 }
 
 void TaskTransformedParameters::recomputeFeature()
@@ -571,7 +569,6 @@ void TaskTransformedParameters::exitSelectionMode()
         clearButtons();
         selectionMode = SelectionMode::None;
         Gui::Selection().rmvSelectionGate();
-        showObject();
     }
     catch (Base::Exception& exc) {
         exc.reportException();

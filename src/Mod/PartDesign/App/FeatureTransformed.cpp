@@ -37,6 +37,7 @@
 
 #include <Base/Console.h>
 #include <Base/Exception.h>
+#include <Base/ProgressIndicator.h>
 #include <Base/Reader.h>
 #include <Mod/Part/App/modelRefine.h>
 
@@ -49,12 +50,14 @@
 #include "FeaturePolarPattern.h"
 #include "FeatureSketchBased.h"
 #include "Mod/Part/App/TopoShapeOpCode.h"
+#include "Mod/Part/App/OCCTProgressIndicator.h"
 
 
 using namespace PartDesign;
 
 namespace PartDesign
 {
+using Part::OCCTProgressIndicator;
 extern bool getPDRefineModelParameter();
 
 PROPERTY_SOURCE(PartDesign::Transformed, PartDesign::FeatureRefine)
@@ -112,9 +115,33 @@ Part::Feature* Transformed::getBaseObject(bool silent) const
     return rv;
 }
 
+std::vector<App::DocumentObject*> Transformed::getOriginals() const
+{
+    auto const mode = static_cast<Mode>(TransformMode.getValue());
+
+    if (mode == Mode::TransformBody) {
+        return {};
+    }
+
+    std::vector<DocumentObject*> originals = Originals.getValues();
+
+    const auto isSuppressed = [](const DocumentObject* obj) {
+        auto feature = freecad_cast<Feature*>(obj);
+
+        return feature != nullptr && feature->Suppressed.getValue();
+    };
+
+    // Remove suppressed features from the list so the transformations behave as if they are not
+    // there
+    auto [first, last] = std::ranges::remove_if(originals, isSuppressed);
+    originals.erase(first, last);
+
+    return originals;
+}
+
 App::DocumentObject* Transformed::getSketchObject() const
 {
-    std::vector<DocumentObject*> originals = Originals.getValues();
+    std::vector<DocumentObject*> originals = getOriginals();
     DocumentObject const* firstOriginal = !originals.empty() ? originals.front() : nullptr;
 
     if (auto feature = freecad_cast<PartDesign::ProfileBased*>(firstOriginal)) {
@@ -196,36 +223,70 @@ short Transformed::mustExecute() const
     return PartDesign::Feature::mustExecute();
 }
 
+App::DocumentObjectExecReturn* Transformed::recomputePreview()
+{
+    const auto mode = static_cast<Mode>(TransformMode.getValue());
+
+    const auto makeCompoundOfToolShapes = [this]() {
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+
+        builder.MakeCompound(compound);
+        for (const auto& original : getOriginals()) {
+            if (auto* feature = freecad_cast<FeatureAddSub*>(original)) {
+                const auto& shape = feature->AddSubShape.getShape();
+
+                if (shape.isNull()) {
+                    continue;
+                }
+
+                builder.Add(compound, shape.getShape());
+            }
+        }
+
+        return compound;
+    };
+
+    switch (mode) {
+        case Mode::TransformToolShapes:
+            PreviewShape.setValue(makeCompoundOfToolShapes());
+            return StdReturn;
+
+        case Mode::TransformBody:
+            PreviewShape.setValue(getBaseShape());
+            return StdReturn;
+
+        default:
+            return FeatureRefine::recomputePreview();
+    }
+}
+
+void Transformed::onChanged(const App::Property* prop)
+{
+    if (prop == &TransformMode) {
+        auto const mode = static_cast<Mode>(TransformMode.getValue());
+        Originals.setStatus(App::Property::Status::Hidden, mode == Mode::TransformBody);
+    }
+
+    FeatureRefine::onChanged(prop);
+}
+
 App::DocumentObjectExecReturn* Transformed::execute()
 {
     if (isMultiTransformChild()) {
         return App::DocumentObject::StdReturn;
     }
 
-    std::vector<App::DocumentObject*> originals;
     auto const mode = static_cast<Mode>(TransformMode.getValue());
-    if (mode == Mode::TransformBody) {
-        Originals.setStatus(App::Property::Status::Hidden, true);
-    } else {
-        Originals.setStatus(App::Property::Status::Hidden, false);
-        originals = Originals.getValues();
-    }
-    // Remove suppressed features from the list so the transformations behave as if they are not
-    // there
-    auto eraseIter =
-        std::remove_if(originals.begin(), originals.end(), [](App::DocumentObject const* obj) {
-            auto feature = freecad_cast<PartDesign::Feature*>(obj);
-            return feature != nullptr && feature->Suppressed.getValue();
-        });
-    originals.erase(eraseIter, originals.end());
+
+    std::vector<DocumentObject*> originals = getOriginals();
 
     if (mode == Mode::TransformToolShapes && originals.empty()) {
         return App::DocumentObject::StdReturn;
     }
 
     if (!this->BaseFeature.getValue()) {
-        auto body = getFeatureBody();
-        if (body) {
+        if (auto body = getFeatureBody()) {
             body->setBaseProperty(this);
         }
     }
@@ -279,6 +340,9 @@ App::DocumentObjectExecReturn* Transformed::execute()
         auto transformIter = transformations.cbegin();
         transformIter++;
         for ( ; transformIter != transformations.end(); transformIter++) {
+            if (OCCTProgressIndicator::getAppIndicator().UserBreak()) {
+                return std::vector<TopoShape>();
+            }
             auto opName = Data::indexSuffix(idx++);
             shapes.emplace_back(shape.makeElementTransform(*transformIter, opName.c_str()));
         }
@@ -319,15 +383,27 @@ App::DocumentObjectExecReturn* Transformed::execute()
                     cutShape = cutShape.makeElementTransform(trsf);
                 }
                 if (!fuseShape.isNull()) {
-                    supportShape.makeElementFuse(getTransformedCompShape(supportShape, fuseShape));
+                    auto shapes = getTransformedCompShape(supportShape, fuseShape);
+                    if (OCCTProgressIndicator::getAppIndicator().UserBreak()) {
+                        return new App::DocumentObjectExecReturn("User aborted");
+                    }
+                    supportShape.makeElementFuse(shapes);
                 }
                 if (!cutShape.isNull()) {
-                    supportShape.makeElementCut(getTransformedCompShape(supportShape, cutShape));
+                    auto shapes = getTransformedCompShape(supportShape, cutShape);
+                    if (OCCTProgressIndicator::getAppIndicator().UserBreak()) {
+                        return new App::DocumentObjectExecReturn("User aborted");
+                    }
+                    supportShape.makeElementCut(shapes);
                 }
             }
             break;
         case Mode::TransformBody: {
-            supportShape.makeElementFuse(getTransformedCompShape(supportShape, supportShape));
+            auto shapes = getTransformedCompShape(supportShape, supportShape);
+            if (OCCTProgressIndicator::getAppIndicator().UserBreak()) {
+                return new App::DocumentObjectExecReturn("User aborted");
+            }
+            supportShape.makeElementFuse(shapes);
             break;
         }
     }

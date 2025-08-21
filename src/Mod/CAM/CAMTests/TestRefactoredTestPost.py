@@ -99,12 +99,12 @@ class TestRefactoredTestPost(PathTestUtils.PathTestBase):
         """
         pass
 
-    def single_compare(self, path, expected, args, debug=False):
+    def single_compare(self, test_path, expected, args, debug=False):
         """Perform a test with a single line of gcode comparison."""
         nl = "\n"
         self.job.PostProcessorArgs = args
         # replace the original path (that came with the job and operation) with our path
-        self.profile_op.Path = Path.Path(path)
+        self.profile_op.Path = Path.Path(test_path)
         # the gcode is in the first section for this particular job and operation
         gcode = self.post.export()[0][1]
         if debug:
@@ -112,13 +112,13 @@ class TestRefactoredTestPost(PathTestUtils.PathTestBase):
         # there are 3 lines of "other stuff" before the line we are interested in
         self.assertEqual(gcode.splitlines()[3], expected)
 
-    def multi_compare(self, path, expected, args, debug=False):
+    def multi_compare(self, test_path, expected, args, debug=False):
         """Perform a test with multiple lines of gcode comparison."""
         nl = "\n"
 
         self.job.PostProcessorArgs = args
         # replace the original path (that came with the job and operation) with our path
-        self.profile_op.Path = Path.Path(path)
+        self.profile_op.Path = Path.Path(test_path)
         # the gcode is in the first section for this particular job and operation
         gcode = self.post.export()[0][1]
         if debug:
@@ -201,7 +201,7 @@ G54
 
     def test00125(self) -> None:
         """Test chipbreaking amount."""
-        path = [
+        test_path = [
             Path.Command("G0 X1 Y2"),
             Path.Command("G0 Z8"),
             Path.Command("G90"),
@@ -212,7 +212,7 @@ G54
         ]
         # check the default chipbreaking amount
         self.multi_compare(
-            path,
+            test_path,
             """G90
 G21
 G54
@@ -238,7 +238,7 @@ G90
         )
         # check for a metric chipbreaking amount
         self.multi_compare(
-            path,
+            test_path,
             """G90
 G21
 G54
@@ -263,7 +263,7 @@ G90
             "--translate_drill --chipbreaking_amount='1.23456 mm'",
         )
         # check for an inch/imperial chipbreaking amount
-        path = [
+        test_path = [
             Path.Command("G0 X25.4 Y50.8"),
             Path.Command("G0 Z203.2"),
             Path.Command("G90"),
@@ -273,7 +273,7 @@ G90
             Path.Command("G90"),
         ]
         self.multi_compare(
-            path,
+            test_path,
             """G90
 G20
 G54
@@ -305,9 +305,9 @@ G90
         self.single_compare("G0 X10 Y20 Z30", "G0 X10.000 Y20.000 Z30.000", "")
         self.single_compare("G0 X10 Y20 Z30", "G0X10.000Y20.000Z30.000", "--command_space=''")
         self.single_compare("G0 X10 Y20 Z30", "G0_X10.000_Y20.000_Z30.000", "--command_space='_'")
-        path = [Path.Command("(comment with spaces)")]
+        test_path = [Path.Command("(comment with spaces)")]
         self.multi_compare(
-            path,
+            test_path,
             """(Begin preamble)
 G90
 G21
@@ -327,7 +327,7 @@ G54
             "--command_space=' ' --comments",
         )
         self.multi_compare(
-            path,
+            test_path,
             """(Begin preamble)
 G90
 G21
@@ -351,9 +351,9 @@ G54
 
     def test00127(self) -> None:
         """Test comment symbol."""
-        path = [Path.Command("(comment with spaces)")]
+        test_path = [Path.Command("(comment with spaces)")]
         self.multi_compare(
-            path,
+            test_path,
             """(Begin preamble)
 G90
 G21
@@ -373,7 +373,7 @@ G54
             "--comments",
         )
         self.multi_compare(
-            path,
+            test_path,
             """;Begin preamble
 G90
 G21
@@ -393,7 +393,7 @@ G54
             "--comment_symbol=';' --comments",
         )
         self.multi_compare(
-            path,
+            test_path,
             """!Begin preamble
 G90
 G21
@@ -882,6 +882,52 @@ G54
 
     #############################################################################
 
+    def test00145(self) -> None:
+        """Test the finish label argument."""
+        # test the default finish label
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+(Begin operation)
+(Finish operation)
+(Begin postamble)
+""",
+            "--comments",
+        )
+
+        # test a changed finish label
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(End operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(End operation)
+(Begin operation)
+(End operation)
+(Begin postamble)
+""",
+            "--finish_label='End' --comments",
+        )
+
+    #############################################################################
+
     def test00150(self):
         """Test output with an empty path.
 
@@ -970,6 +1016,127 @@ G54
     def test00160(self):
         """Test Line Numbers."""
         self.single_compare("G0 X10 Y20 Z30", "N130 G0 X10.000 Y20.000 Z30.000", "--line-numbers")
+        self.single_compare("G0 X10 Y20 Z30", "G0 X10.000 Y20.000 Z30.000", "--no-line-numbers")
+
+    #############################################################################
+
+    def test00165(self) -> None:
+        """Test line number increment and line number start."""
+        test_path = [
+            Path.Command("G0 X1 Y2"),
+            Path.Command("G0 Z8"),
+        ]
+        # check the default line number increment
+        self.multi_compare(
+            test_path,
+            """N100 G90
+N110 G21
+N120 G54
+N130 G0 X1.000 Y2.000
+N140 G0 Z8.000
+""",
+            "--line-numbers",
+        )
+
+        # check a non-default line number increment
+        self.multi_compare(
+            test_path,
+            """N150 G90
+N153 G21
+N156 G54
+N159 G0 X1.000 Y2.000
+N162 G0 Z8.000
+""",
+            "--line-numbers --line_number_increment=3",
+        )
+
+        # check a non-default starting line number
+        self.multi_compare(
+            test_path,
+            """N123 G90
+N126 G21
+N129 G54
+N132 G0 X1.000 Y2.000
+N135 G0 Z8.000
+""",
+            "--line-numbers --line_number_increment=3 --line_number_start=123",
+        )
+
+    #############################################################################
+
+    def test00166(self) -> None:
+        """Test listing tools in the preamble."""
+        test_path = [
+            Path.Command("G0 X1 Y2"),
+            Path.Command("G0 Z8"),
+        ]
+        # test listing tools in the preamble
+        self.multi_compare(
+            test_path,
+            """(T1=TC__Default_Tool)
+(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+M6 T1
+(Finish operation)
+(Begin operation)
+G0 X1.000 Y2.000
+G0 Z8.000
+(Finish operation)
+(Begin postamble)
+""",
+            "--comments --tool_change --list_tools_in_preamble",
+        )
+        # test not listing tools in the preamble
+        self.multi_compare(
+            test_path,
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+M6 T1
+(Finish operation)
+(Begin operation)
+G0 X1.000 Y2.000
+G0 Z8.000
+(Finish operation)
+(Begin postamble)
+""",
+            "--comments --tool_change --no-list_tools_in_preamble",
+        )
+        # test the default behavior for listing tools in the preamble
+        self.multi_compare(
+            test_path,
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+M6 T1
+(Finish operation)
+(Begin operation)
+G0 X1.000 Y2.000
+G0 Z8.000
+(Finish operation)
+(Begin postamble)
+""",
+            "--comments --tool_change",
+        )
 
     #############################################################################
 
@@ -1057,10 +1224,21 @@ G54
   --feed-precision FEED_PRECISION
                         Number of digits of precision for feed rate, default
                         is 3
+  --finish_label FINISH_LABEL
+                        The characters to use in the 'Finish operation'
+                        comment, default is "Finish"
   --header              Output headers (default)
   --no-header           Suppress header output
+  --line_number_increment LINE_NUMBER_INCREMENT
+                        Amount to increment the line numbers, default is 10
+  --line_number_start LINE_NUMBER_START
+                        The number the line numbers start at, default is 100
   --line-numbers        Prefix with line numbers
   --no-line-numbers     Don't prefix with line numbers (default)
+  --list_tools_in_preamble
+                        List the tools used in the operation in the preamble
+  --no-list_tools_in_preamble
+                        Don't list the tools used in the operation (default)
   --modal               Don't output the G-command name if it is the same as
                         the previous line
   --no-modal            Output the G-command name even if it is the same as
@@ -1069,12 +1247,25 @@ G54
                         Output all of the available arguments
   --no-output_all_arguments
                         Don't output all of the available arguments (default)
+  --output_machine_name
+                        Output the machine name in the pre-operation
+                        information
+  --no-output_machine_name
+                        Don't output the machine name in the pre-operation
+                        information (default)
+  --output_path_labels  Output Path labels at the beginning of each Path
+  --no-output_path_labels
+                        Don't output Path labels at the beginning of each Path
+                        (default)
   --output_visible_arguments
                         Output all of the visible arguments
   --no-output_visible_arguments
                         Don't output the visible arguments (default)
   --postamble POSTAMBLE
                         Set commands to be issued after the last command,
+                        default is ""
+  --post_operation POST_OPERATION
+                        Set commands to be issued after every operation,
                         default is ""
   --preamble PREAMBLE   Set commands to be issued before the first command,
                         default is ""
@@ -1115,6 +1306,42 @@ G54
 
     #############################################################################
 
+    def test00191(self):
+        """Make sure postprocessor doesn't crash on blank lines"""
+
+        path = [
+            Path.Command("G0 X1"),
+            Path.Command(""),
+            Path.Command("G0 X2"),
+        ]
+
+        self.post.values["OUTPUT_BLANK_LINES"] = True
+        self.multi_compare(
+            path,
+            """G90
+G21
+G54
+G0 X1.000
+
+G0 X2.000
+""",
+            "",
+        )
+
+        self.post.values["OUTPUT_BLANK_LINES"] = False
+        self.multi_compare(
+            path,
+            """G90
+G21
+G54
+G0 X1.000
+G0 X2.000
+""",
+            "",
+        )
+
+    #############################################################################
+
     def test00200(self):
         """Test Outputting visible arguments.
 
@@ -1125,6 +1352,146 @@ G54
         self.job.PostProcessorArgs = "--output_visible_arguments"
         gcode = self.post.export()[0][1]
         self.assertEqual(gcode, expected)
+
+    #############################################################################
+
+    def test00205(self) -> None:
+        """Test output_machine_name argument."""
+        # test the default behavior
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+(Begin operation)
+(Finish operation)
+(Begin postamble)
+""",
+            "--comments",
+        )
+
+        # test outputting the machine name
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+(Machine: test, mm/min)
+G54
+(Finish operation)
+(Begin operation)
+(Machine: test, mm/min)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+(Begin operation)
+(Machine: test, mm/min)
+(Finish operation)
+(Begin postamble)
+""",
+            "--output_machine_name --comments",
+        )
+
+        # test not outputting the machine name
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+(Begin operation)
+(Finish operation)
+(Begin postamble)
+""",
+            "--no-output_machine_name --comments",
+        )
+
+    #############################################################################
+
+    def test00206(self) -> None:
+        """Test output_path_labels argument."""
+        # test the default behavior
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+(Begin operation)
+(Finish operation)
+(Begin postamble)
+""",
+            "--comments",
+        )
+
+        # test outputting the path labels
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+(Path: Fixture)
+G54
+(Finish operation)
+(Begin operation)
+(Path: TC: Default Tool)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+(Begin operation)
+(Path: Profile)
+(Finish operation)
+(Begin postamble)
+""",
+            "--output_path_labels --comments",
+        )
+
+        # test not outputting the path labels
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+(Begin operation)
+(Finish operation)
+(Begin postamble)
+""",
+            "--no-output_path_labels --comments",
+        )
 
     #############################################################################
 
@@ -1139,6 +1506,36 @@ G54
         # print(f"--------{nl}{gcode}--------{nl}")
         self.assertEqual(split_gcode[-2], "G0 Z50")
         self.assertEqual(split_gcode[-1], "M2")
+
+    #############################################################################
+
+    def test00215(self) -> None:
+        """Test the post_operation argument."""
+        self.multi_compare(
+            [],
+            """(Begin preamble)
+G90
+G21
+(Begin operation)
+G54
+(Finish operation)
+G90 G80
+G40 G49
+(Begin operation)
+(TC: Default Tool)
+(Begin toolchange)
+(M6 T1)
+(Finish operation)
+G90 G80
+G40 G49
+(Begin operation)
+(Finish operation)
+G90 G80
+G40 G49
+(Begin postamble)
+""",
+            "--comments --post_operation='G90 G80\nG40 G49'",
+        )
 
     #############################################################################
 

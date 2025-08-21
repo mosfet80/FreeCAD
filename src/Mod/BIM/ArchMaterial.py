@@ -170,7 +170,7 @@ class _ArchMaterial:
         if not "Description" in obj.PropertiesList:
             obj.addProperty("App::PropertyString","Description","Material",QT_TRANSLATE_NOOP("App::Property","A description for this material"), locked=True)
         if not "StandardCode" in obj.PropertiesList:
-            obj.addProperty("App::PropertyString","StandardCode","Material",QT_TRANSLATE_NOOP("App::Property","A standard code (MasterFormat, OmniClass,...)"), locked=True)
+            obj.addProperty("App::PropertyString","StandardCode","Material",QT_TRANSLATE_NOOP("App::Property","A standard code (MasterFormat, OmniClass,…)"), locked=True)
         if not "ProductURL" in obj.PropertiesList:
             obj.addProperty("App::PropertyString","ProductURL","Material",QT_TRANSLATE_NOOP("App::Property","A URL where to find information about this material"), locked=True)
         if not "Transparency" in obj.PropertiesList:
@@ -279,12 +279,18 @@ class _ArchMaterial:
     def execute(self,obj):
         if obj.Material:
             if FreeCAD.GuiUp:
+                c = None
+                t = None
                 if "DiffuseColor" in obj.Material:
-                    c = tuple([float(f) for f in obj.Material['DiffuseColor'].strip("()").strip("[]").split(",")])
-                    for p in obj.InList:
-                        if hasattr(p,"Material") and ( (not hasattr(p.ViewObject,"UseMaterialColor")) or p.ViewObject.UseMaterialColor):
-                            if p.Material.Name == obj.Name:
-                                p.ViewObject.ShapeColor = c
+                    c = tuple([float(f) for f in obj.Material["DiffuseColor"].strip("()").strip("[]").split(",")])
+                if "Transparency" in obj.Material:
+                    t = int(obj.Material["Transparency"])
+                for p in obj.InList:
+                    if hasattr(p,"Material") \
+                            and p.Material.Name == obj.Name \
+                            and getattr(obj.ViewObject,"UseMaterialColor",True):
+                        if c: p.ViewObject.ShapeColor = c
+                        if t: p.ViewObject.Transparency = t
         return
 
     def dumps(self):
