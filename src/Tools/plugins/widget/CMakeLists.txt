@@ -6,7 +6,7 @@ endif()
 
 if (NOT IS_SUB_PROJECT)
     project(FreeCAD_widgets)
-    cmake_minimum_required(VERSION 3.2.0)
+    cmake_minimum_required(VERSION 3.10.0)
 
     set(CMAKE_INCLUDE_CURRENT_DIR ON)
     set(CMAKE_AUTOMOC ON)
