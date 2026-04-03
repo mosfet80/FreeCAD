@@ -155,7 +155,6 @@ public:
     T* getGroup();
 
     std::vector<App::DocumentObject*> getJoints(
-        bool updateJCS = true,
         bool delBadJoints = false,
         bool subJoints = true
     );

@@ -234,7 +234,7 @@ void AssemblyLink::updateParentJoints()
 
     bool rigid = Rigid.getValue();
     // Iterate joints in the immediate parent assembly only (recursive=false)
-    for (auto* joint : parent->getJoints(false, false, false)) {
+    for (auto* joint : parent->getJoints(false, false)) {
         for (const char* refName : {"Reference1", "Reference2"}) {
             auto* prop = dynamic_cast<App::PropertyXLinkSub*>(joint->getPropertyByName(refName));
             if (!prop) {
@@ -554,7 +554,7 @@ void AssemblyLink::synchronizeJoints()
     JointGroup* jGroup = ensureJointGroup();
 
     std::vector<App::DocumentObject*> assemblyJoints
-        = assembly->getJoints(assembly->isTouched(), false, false);
+        = assembly->getJoints(false, false);
     std::vector<App::DocumentObject*> assemblyLinkJoints = getJoints();
 
     // We delete the excess of joints if any
