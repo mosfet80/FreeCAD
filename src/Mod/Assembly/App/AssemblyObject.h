@@ -154,10 +154,7 @@ public:
     template<typename T>
     T* getGroup();
 
-    std::vector<App::DocumentObject*> getJoints(
-        bool delBadJoints = false,
-        bool subJoints = true
-    );
+    std::vector<App::DocumentObject*> getJoints(bool delBadJoints = false, bool subJoints = true);
     std::vector<App::DocumentObject*> getGroundedJoints();
     std::vector<App::DocumentObject*> getJointsOfObj(App::DocumentObject* obj);
     std::vector<App::DocumentObject*> getJointsOfPart(App::DocumentObject* part);

@@ -553,8 +553,7 @@ void AssemblyLink::synchronizeJoints()
 
     JointGroup* jGroup = ensureJointGroup();
 
-    std::vector<App::DocumentObject*> assemblyJoints
-        = assembly->getJoints(false, false);
+    std::vector<App::DocumentObject*> assemblyJoints = assembly->getJoints(false, false);
     std::vector<App::DocumentObject*> assemblyLinkJoints = getJoints();
 
     // We delete the excess of joints if any
