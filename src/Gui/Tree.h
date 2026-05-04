@@ -371,6 +371,7 @@ public:
     void updateItemsVisibility(QTreeWidgetItem* item, bool show);
     void updateLinks(const ViewProviderDocumentObject& view);
     ViewProviderDocumentObject* getViewProvider(App::DocumentObject*);
+    void setBaseIcon(int column, const QIcon& base);
 
     bool showHidden() const;
     void setShowHidden(bool show);
@@ -445,6 +446,8 @@ protected:
     using ViewParentMap
         = std::unordered_map<const ViewProvider*, std::vector<ViewProviderDocumentObject*>>;
     void populateParents(const ViewProvider* vp, ViewParentMap&);
+
+    void setReadOnlyIconInfo(int column, QIcon& overlayedIcon);
 
 private:
     const char* treeName;  // for debugging purpose
@@ -552,6 +555,10 @@ private:
         const std::vector<bool>& snapshot,
         std::vector<bool>::const_iterator& from
     );
+
+    void setIconOverlays(int currentStatus, QPixmap& overlays) const;
+    void generateIcon(int currentStatus, QIcon::Mode mode, QIcon& icon);
+    QIcon getVisibilityIcon(int currentStatus, QIcon& original_icon);
 
     QBrush bgBrush;
     DocumentItem* myOwner;
